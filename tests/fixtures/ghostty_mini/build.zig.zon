@@ -1,0 +1,20 @@
+.{
+    .name = .ghostty_mini,
+    .version = "0.1.0",
+    .fingerprint = 0xc3c3bb9d57a5620e,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .simdns = .{ .path = "pkg/simdns" },
+        .unicode_tables = .{ .path = "pkg/unicode_tables" },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "include",
+        "resources",
+        "examples",
+        "bench",
+        "pkg",
+    },
+}

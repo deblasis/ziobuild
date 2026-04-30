@@ -369,3 +369,20 @@ test "no_examples fixture: run-examples step is absent from help" {
     try T.expect(std.mem.indexOf(u8, r.stderr, "run-example") == null);
     try T.expect(std.mem.indexOf(u8, r.stderr, "run-examples") == null);
 }
+
+test "ghostty_mini: builds exe, lib, and examples" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "ghostty_mini");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "ghostty_mini", "zig-out/bin/ghostty-mini" ++ exe_suffix));
+    const lib_name = if (builtin.os.tag == .windows) "ghostty-mini.lib" else "libghostty-mini.a";
+    try expectFileExists(try fixtureFile(a, "ghostty_mini", "zig-out/lib/" ++ lib_name));
+    try expectFileExists(try fixtureFile(a, "ghostty_mini", "zig-out/bin/example-basic" ++ exe_suffix));
+    try expectFileExists(try fixtureFile(a, "ghostty_mini", "zig-out/bin/example-daemon" ++ exe_suffix));
+}

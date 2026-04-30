@@ -1,0 +1,12 @@
+.{
+    .name = .simdns,
+    .version = "0.1.0",
+    .fingerprint = 0x1cb6e17d9163f591,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
