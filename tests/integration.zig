@@ -176,3 +176,196 @@ test "minimal headline fixture: release matrix builds three targets" {
     try expectFileExists(try std.fs.path.join(a, &.{ opts.minimal_dir, "zig-out/release/macos-aarch64/minimal" }));
     try expectFileExists(try std.fs.path.join(a, &.{ opts.minimal_dir, "zig-out/release/windows-x86_64/minimal.exe" }));
 }
+
+test "smoke fixture: built binary runs and exits 0" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "smoke");
+
+    // Build first
+    var build_r = try runZigBuild(cwd, &.{});
+    defer freeRun(&build_r);
+    try expectExited(build_r, 0);
+
+    // Run the built binary
+    const exe_path = try fixtureFile(a, "smoke", "zig-out/bin/smoke" ++ exe_suffix);
+    const run_r = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{exe_path},
+    });
+    defer {
+        T.allocator.free(run_r.stdout);
+        T.allocator.free(run_r.stderr);
+    }
+    try expectExited(run_r, 0);
+}
+
+test "kitchen_sink fixture: test step passes" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "kitchen_sink");
+
+    var r = try runZigBuild(cwd, &.{"test"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+}
+
+test "kitchen_sink fixture: individual example steps exist" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "kitchen_sink");
+
+    // Build example a
+    var r = try runZigBuild(cwd, &.{"run-example-a"});
+    defer freeRun(&r);
+    // The example may exit non-zero if it has no args, we just
+    // check the step compiled and the binary exists.
+    try expectFileExists(try fixtureFile(a, "kitchen_sink", "zig-out/bin/a" ++ exe_suffix));
+}
+
+test "comparison: plain build.zig produces a runnable binary" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "comparison_plain");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    const exe = try fixtureFile(a, "comparison_plain", "zig-out/bin/comparison-plain" ++ exe_suffix);
+    try expectFileExists(exe);
+
+    // Run it and capture output
+    const run_r = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{exe},
+    });
+    defer {
+        T.allocator.free(run_r.stdout);
+        T.allocator.free(run_r.stderr);
+    }
+    try expectExited(run_r, 0);
+}
+
+test "comparison: ziobuild produces a runnable binary" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "comparison_zb");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    const exe = try fixtureFile(a, "comparison_zb", "zig-out/bin/comparison-zb" ++ exe_suffix);
+    try expectFileExists(exe);
+
+    // Run it and capture output
+    const run_r = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{exe},
+    });
+    defer {
+        T.allocator.free(run_r.stdout);
+        T.allocator.free(run_r.stderr);
+    }
+    try expectExited(run_r, 0);
+}
+
+test "comparison: plain and ziobuild produce identical runtime output" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    // Build and run plain
+    const plain_cwd = try fixturePath(a, "comparison_plain");
+    var plain_build = try runZigBuild(plain_cwd, &.{});
+    defer freeRun(&plain_build);
+    try expectExited(plain_build, 0);
+
+    const plain_exe = try fixtureFile(a, "comparison_plain", "zig-out/bin/comparison-plain" ++ exe_suffix);
+    const plain_run = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{plain_exe},
+    });
+    defer {
+        T.allocator.free(plain_run.stdout);
+        T.allocator.free(plain_run.stderr);
+    }
+    try expectExited(plain_run, 0);
+
+    // Build and run ziobuild
+    const zb_cwd = try fixturePath(a, "comparison_zb");
+    var zb_build = try runZigBuild(zb_cwd, &.{});
+    defer freeRun(&zb_build);
+    try expectExited(zb_build, 0);
+
+    const zb_exe = try fixtureFile(a, "comparison_zb", "zig-out/bin/comparison-zb" ++ exe_suffix);
+    const zb_run = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{zb_exe},
+    });
+    defer {
+        T.allocator.free(zb_run.stdout);
+        T.allocator.free(zb_run.stderr);
+    }
+    try expectExited(zb_run, 0);
+
+    // Both should produce the same output since they compile the same source
+    try T.expectEqualStrings(plain_run.stdout, zb_run.stdout);
+}
+
+test "custom_target fixture: zig build succeeds" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "custom_target");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "custom_target", "zig-out/bin/ct" ++ exe_suffix));
+}
+
+test "custom_target fixture: release step builds custom target" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "custom_target");
+
+    var r = try runZigBuild(cwd, &.{"release"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    // The custom target was freestanding-x86_64, which installs under
+    // zig-out/release/freestanding-x86_64/
+    try expectFileExists(try fixtureFile(a, "custom_target", "zig-out/release/freestanding-x86_64/ct"));
+}
+
+test "no_examples fixture: zig build succeeds despite missing examples dir" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "no_examples");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "no_examples", "zig-out/bin/noex" ++ exe_suffix));
+}
+
+test "no_examples fixture: run-examples step is absent from help" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "no_examples");
+
+    var r = try runZigBuild(cwd, &.{"help"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+    // When examples() finds nothing, no run-example-* or run-examples
+    // steps should appear.
+    try T.expect(std.mem.indexOf(u8, r.stderr, "run-example") == null);
+    try T.expect(std.mem.indexOf(u8, r.stderr, "run-examples") == null);
+}

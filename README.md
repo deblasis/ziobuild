@@ -274,6 +274,13 @@ Not in v0.1. The watch story is a separate package.
 
 0.16.0. Pinned via `.zigversion`. The build API is a moving target.
 
+## Compatibility
+
+- **Zig**: 0.16.0 (tracked in CI; earlier versions are not supported).
+- **Platforms**: tested on Linux (x86_64), macOS (x86_64, aarch64), Windows (x86_64).
+- **Breaking changes**: pinned to the Zig 0.16 stable release cycle. A major-version bump in Zig may require a major-version bump here.
+
+
 ## License
 
 MIT. Copyright Alessandro De Blasis.

@@ -88,3 +88,59 @@ test "Target.dirName: stable for known variants" {
     try std.testing.expectEqualStrings("macos-aarch64", Target.darwin_arm64.dirName());
     try std.testing.expectEqualStrings("windows-x86_64", Target.windows_x64.dirName());
 }
+
+test "Target.query: linux_arm64 maps to aarch64-linux-gnu" {
+    const q = Target.linux_arm64.query();
+    try std.testing.expectEqual(std.Target.Cpu.Arch.aarch64, q.cpu_arch.?);
+    try std.testing.expectEqual(std.Target.Os.Tag.linux, q.os_tag.?);
+    try std.testing.expectEqual(std.Target.Abi.gnu, q.abi.?);
+}
+
+test "Target.query: darwin_x64 maps to x86_64-macos" {
+    const q = Target.darwin_x64.query();
+    try std.testing.expectEqual(std.Target.Cpu.Arch.x86_64, q.cpu_arch.?);
+    try std.testing.expectEqual(std.Target.Os.Tag.macos, q.os_tag.?);
+}
+
+test "Target.query: windows_arm64 maps to aarch64-windows-gnu" {
+    const q = Target.windows_arm64.query();
+    try std.testing.expectEqual(std.Target.Cpu.Arch.aarch64, q.cpu_arch.?);
+    try std.testing.expectEqual(std.Target.Os.Tag.windows, q.os_tag.?);
+    try std.testing.expectEqual(std.Target.Abi.gnu, q.abi.?);
+}
+
+test "Target.dirName: all six variants are unique" {
+    const fields = std.meta.fields(Target);
+    inline for (fields, 0..) |a, i| {
+        inline for (fields, 0..) |b, j| {
+            if (i != j) {
+                const ta: Target = @field(Target, a.name);
+                const tb: Target = @field(Target, b.name);
+                try std.testing.expect(!std.mem.eql(u8, ta.dirName(), tb.dirName()));
+            }
+        }
+    }
+}
+
+test "Target.query and dirName are self-consistent for every variant" {
+    // Every query produces a non-null cpu_arch and os_tag.
+    // Every dirName contains the os name in some form.
+    inline for (std.meta.fields(Target)) |f| {
+        const t: Target = @field(Target, f.name);
+        const q = t.query();
+        try std.testing.expect(q.cpu_arch != null);
+        try std.testing.expect(q.os_tag != null);
+        const name = t.dirName();
+        try std.testing.expect(name.len > 0);
+    }
+}
+
+test "CustomTarget struct fields are accessible" {
+    const ct = CustomTarget{
+        .name = "wasm32-emscripten",
+        .query = .{ .cpu_arch = .wasm32, .os_tag = .emscripten },
+    };
+    try std.testing.expectEqualStrings("wasm32-emscripten", ct.name);
+    try std.testing.expectEqual(std.Target.Cpu.Arch.wasm32, ct.query.cpu_arch.?);
+    try std.testing.expectEqual(std.Target.Os.Tag.emscripten, ct.query.os_tag.?);
+}

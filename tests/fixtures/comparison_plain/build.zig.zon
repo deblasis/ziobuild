@@ -1,0 +1,11 @@
+.{
+    .name = .comparison_plain,
+    .version = "0.0.0",
+    .fingerprint = 0x6aaac608d5e4c8d8,
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

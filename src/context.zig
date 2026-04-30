@@ -44,11 +44,17 @@ pub const Context = struct {
     /// override.
     optimize: std.builtin.OptimizeMode,
 
+    /// Build an executable. See `app.zig` for options.
     pub const app = app_mod.app;
+    /// Build a library. See `lib.zig` for options.
     pub const lib = lib_mod.lib;
+    /// Declare a test step. See `tests.zig` for options.
     pub const tests = tests_mod.tests;
+    /// Register one example per glob match. See `examples_glob.zig`.
     pub const examples = examples_mod.examples;
+    /// Cross-compile release matrix. See `releases.zig` for options.
     pub const releases = releases_mod.releases;
+    /// Print a tidy step listing. See `help.zig`.
     pub const help = help_mod.help;
 };
 
