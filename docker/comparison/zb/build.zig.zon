@@ -1,0 +1,14 @@
+.{
+    .name = .comparison_zb,
+    .version = "0.1.0",
+    .fingerprint = 0x6c60b0b6c0a3221b,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .ziobuild = .{ .path = "../../.." },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
