@@ -1,0 +1,77 @@
+//! ziobuild: declarative `build.zig` DSL.
+//!
+//! Replaces 80+ line build files with a dozen calls. The API is
+//! layered: every helper that produces an artifact returns the
+//! underlying `*std.Build.Step.Compile`, so callers can drop down to
+//! raw `std.Build` whenever they want. Nothing is hidden.
+//!
+//! Quickstart:
+//!
+//!     const std = @import("std");
+//!     const zb = @import("ziobuild");
+//!
+//!     pub fn build(b: *std.Build) void {
+//!         const ctx = zb.init(b, .{ .name = "myapp" });
+//!         const app = ctx.app(.{
+//!             .root = "src/main.zig",
+//!             .deps = &.{ "ziosh", "zioarg" },
+//!         });
+//!         _ = ctx.tests(.{ .root = "src/main.zig" });
+//!         _ = ctx.examples("examples/*/main.zig");
+//!         _ = ctx.releases(.{
+//!             .of = app,
+//!             .targets = &.{ .linux_x64, .darwin_arm64, .windows_x64 },
+//!         });
+//!         ctx.help();
+//!     }
+
+const std = @import("std");
+
+const context_mod = @import("context.zig");
+const target_mod = @import("target.zig");
+const app_mod = @import("app.zig");
+const lib_mod = @import("lib.zig");
+const tests_mod = @import("tests.zig");
+const examples_mod = @import("examples_glob.zig");
+const releases_mod = @import("releases.zig");
+const help_mod = @import("help.zig");
+const deps_mod = @import("deps.zig");
+
+/// Build a `Context` from a `*std.Build`. Entry point.
+pub const init = context_mod.init;
+
+/// Bundle of build state passed to every helper.
+pub const Context = context_mod.Context;
+
+/// Options for `init`.
+pub const InitOptions = context_mod.InitOptions;
+
+/// Cross-compile preset for `releases`.
+pub const Target = target_mod.Target;
+
+/// Escape hatch for arbitrary targets.
+pub const CustomTarget = target_mod.CustomTarget;
+
+/// Options for `Context.app`.
+pub const AppOptions = app_mod.Options;
+
+/// Options for `Context.lib`.
+pub const LibOptions = lib_mod.Options;
+
+/// Options for `Context.tests`.
+pub const TestsOptions = tests_mod.Options;
+
+/// Options for `Context.releases`.
+pub const ReleasesOptions = releases_mod.Options;
+
+test {
+    _ = context_mod;
+    _ = target_mod;
+    _ = app_mod;
+    _ = lib_mod;
+    _ = tests_mod;
+    _ = examples_mod;
+    _ = releases_mod;
+    _ = help_mod;
+    _ = deps_mod;
+}
