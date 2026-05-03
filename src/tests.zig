@@ -1,6 +1,8 @@
 //! `Context.tests` declares a test compile, wraps it with
 //! `addRunArtifact`, and registers a top-level test step (default
 //! name `test`) that depends on the run.
+//!
+//! v0.3: Imports are deferred.
 
 const std = @import("std");
 
@@ -14,6 +16,11 @@ pub const Options = struct {
     name: ?[]const u8 = null,
     /// Imports to add to the test module.
     imports: []const context_mod.Dep = &.{},
+    /// Shorthand: each string becomes an import of the module with
+    /// that name from the registry.
+    mod_imports: []const []const u8 = &.{},
+    /// If true, import ALL registered modules by their registry name.
+    import_all: bool = false,
     /// Override the Context default target.
     target: ?std.Build.ResolvedTarget = null,
     /// Override the Context default optimize.
@@ -35,7 +42,17 @@ pub fn tests(ctx: context_mod.Context, options: Options) *std.Build.Step.Compile
         .target = target,
         .optimize = optimize,
     });
-    ctx.resolveDeps(mod, options.imports);
+
+    // Defer import resolution.
+    const has_imports = options.imports.len > 0 or options.mod_imports.len > 0 or options.import_all;
+    if (has_imports) {
+        ctx.addPending(.{
+            .consumer = mod,
+            .deps = options.imports,
+            .mod_imports = options.mod_imports,
+            .import_all = options.import_all,
+        });
+    }
 
     const test_exe = ctx.b.addTest(.{
         .name = options.name orelse "test",

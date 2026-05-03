@@ -2,10 +2,7 @@ const std = @import("std");
 const zb = @import("ziobuild");
 
 pub fn build(b: *std.Build) void {
-    const ctx = zb.init(b, .{
-        .name = "ghostty-mini",
-        .version = "0.1.0",
-    });
+    const ctx = zb.init(b, .{ .name = "ghostty-mini" });
 
     // ---- Shared deps (mirrors ghostty's SharedDeps) ----
     const simdns = b.dependency("simdns", .{
@@ -29,10 +26,10 @@ pub fn build(b: *std.Build) void {
     // ---- App executable ----
     const app = ctx.app(.{
         .root = "src/main.zig",
-        .deps = &.{
-            .{ .name = "config", .module = config_mod },
-            .{ .name = "simdns", .module = simdns.module("simdns") },
-            .{ .name = "unicode_tables", .module = unicode_tables.module("unicode_tables") },
+        .imports = &.{
+            .{ .direct = .{ .name = "config", .module = config_mod } },
+            .{ .direct = .{ .name = "simdns", .module = simdns.module("simdns") } },
+            .{ .direct = .{ .name = "unicode_tables", .module = unicode_tables.module("unicode_tables") } },
         },
     });
 
@@ -40,18 +37,18 @@ pub fn build(b: *std.Build) void {
     _ = ctx.lib(.{
         .name = "ghostty-mini",
         .root = "src/lib.zig",
-        .deps = &.{
-            .{ .name = "config", .module = config_mod },
+        .imports = &.{
+            .{ .direct = .{ .name = "config", .module = config_mod } },
         },
     });
 
     // ---- Tests ----
     _ = ctx.tests(.{
         .root = "src/main.zig",
-        .deps = &.{
-            .{ .name = "config", .module = config_mod },
-            .{ .name = "simdns", .module = simdns.module("simdns") },
-            .{ .name = "unicode_tables", .module = unicode_tables.module("unicode_tables") },
+        .imports = &.{
+            .{ .direct = .{ .name = "config", .module = config_mod } },
+            .{ .direct = .{ .name = "simdns", .module = simdns.module("simdns") } },
+            .{ .direct = .{ .name = "unicode_tables", .module = unicode_tables.module("unicode_tables") } },
         },
     });
 

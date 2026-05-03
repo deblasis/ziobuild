@@ -1,5 +1,8 @@
 //! `Context.testModules` creates a test compile for every module in
 //! the registry and aggregates them under a single step.
+//!
+//! v0.3: Calls `ensureResolved()` before iterating so all deferred
+//! imports are wired up before tests run.
 
 const std = @import("std");
 
@@ -20,6 +23,9 @@ pub fn testModules(
 ) []const *std.Build.Step.Compile {
     const b = ctx.b;
     const arena = b.allocator;
+
+    // Resolve all deferred imports before touching the module graph.
+    ctx.ensureResolved();
 
     if (ctx.modules.count() == 0) return &.{};
 

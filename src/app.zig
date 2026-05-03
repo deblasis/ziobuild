@@ -1,6 +1,10 @@
 //! `Context.app` builds an executable, installs it (by default), and
 //! registers a run step. Returns the underlying `*Compile` so callers
 //! can drop down to raw `std.Build` whenever they want.
+//!
+//! v0.3: Imports are deferred. The module is created and wired into
+//! the build graph immediately, but its imports are resolved lazily
+//! by `ensureResolved()`.
 
 const std = @import("std");
 
@@ -14,6 +18,11 @@ pub const Options = struct {
     root: []const u8,
     /// Imports to add to the executable's root module.
     imports: []const context_mod.Dep = &.{},
+    /// Shorthand: each string becomes an import of the module with
+    /// that name from the registry.
+    mod_imports: []const []const u8 = &.{},
+    /// If true, import ALL registered modules by their registry name.
+    import_all: bool = false,
     /// Override the Context default target.
     target: ?std.Build.ResolvedTarget = null,
     /// Override the Context default optimize.
@@ -40,7 +49,17 @@ pub fn app(ctx: context_mod.Context, options: Options) *std.Build.Step.Compile {
         .target = target,
         .optimize = optimize,
     });
-    ctx.resolveDeps(mod, options.imports);
+
+    // Defer import resolution.
+    const has_imports = options.imports.len > 0 or options.mod_imports.len > 0 or options.import_all;
+    if (has_imports) {
+        ctx.addPending(.{
+            .consumer = mod,
+            .deps = options.imports,
+            .mod_imports = options.mod_imports,
+            .import_all = options.import_all,
+        });
+    }
 
     const exe = ctx.b.addExecutable(.{
         .name = name,

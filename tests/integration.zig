@@ -468,3 +468,105 @@ test "multi_exe fixture: build option can skip tool" {
     // We verify by checking the build stderr doesn't mention the tool.
     try T.expect(std.mem.indexOf(u8, r.stderr, "multi_exe_tool") == null);
 }
+
+// ============================================================
+// v0.3 tests: deferred resolution, mod_imports, import_all
+// ============================================================
+
+test "modules_reverse: deferred resolution — reverse order still works" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "modules_reverse");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "modules_reverse", "zig-out/bin/modules_reverse" ++ exe_suffix));
+}
+
+test "modules_reverse: test step passes" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "modules_reverse");
+
+    var r = try runZigBuild(cwd, &.{"test"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+}
+
+test "modules_reverse: release step builds" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "modules_reverse");
+
+    var r = try runZigBuild(cwd, &.{"release"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "modules_reverse", "zig-out/release/linux-x86_64/modules_reverse"));
+}
+
+test "mod_imports: shorthand builds and runs" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "mod_imports");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "mod_imports", "zig-out/bin/mod_imports" ++ exe_suffix));
+}
+
+test "mod_imports: test step passes" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "mod_imports");
+
+    var r = try runZigBuild(cwd, &.{"test"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+}
+
+test "import_all: builds exe with all modules imported" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "import_all");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "import_all", "zig-out/bin/import_all" ++ exe_suffix));
+}
+
+test "import_all: test step passes (self-import skipped)" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "import_all");
+
+    var r = try runZigBuild(cwd, &.{"test"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+}
+
+test "import_all: help step shows test and run" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "import_all");
+
+    var r = try runZigBuild(cwd, &.{"help"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+    try T.expect(std.mem.indexOf(u8, r.stderr, "test") != null);
+    try T.expect(std.mem.indexOf(u8, r.stderr, "run") != null);
+}

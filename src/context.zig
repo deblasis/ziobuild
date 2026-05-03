@@ -4,9 +4,13 @@
 //! `examples`, `releases`, `help`, `module`, `testModules`) hangs off
 //! it.
 //!
-//! The Context is small and copyable. It does not own anything that
-//! needs explicit teardown — the module registry is heap-allocated
-//! via the build allocator (an arena).
+//! v0.3: Dependency resolution is **deferred**. Calls to `module()`,
+//! `app()`, `tests()`, `lib()` store their import lists without
+//! resolving them. Resolution happens lazily when any consumer needs
+//! the full module graph (e.g. `testModules()`, `releases()`,
+//! `help()`, or an explicit `finalize()`). This removes ordering
+//! constraints — modules can be declared in any order and can
+//! reference each other freely.
 
 const std = @import("std");
 
@@ -23,15 +27,29 @@ const modules_mod = @import("modules.zig");
 
 /// A single import that can be attached to a module. Three sources:
 ///
-///   - `.module_registry` — resolved by name from the Context's
-///     internal module registry (registered via `ctx.module()`).
+///   - `.mod` — resolved by name from the Context's internal module
+///     registry (registered via `ctx.module()`).
 ///   - `.zon_dep` — resolved by name from `build.zig.zon` via
 ///     `b.dependency()`.
 ///   - `.direct` — a pre-built `*Module` with an explicit import name.
 pub const Dep = union(enum) {
-    module_registry: []const u8,
+    mod: []const u8,
     zon_dep: []const u8,
     direct: struct { name: []const u8, module: *std.Build.Module },
+};
+
+/// A pending (deferred) import list that will be resolved later.
+pub const PendingImports = struct {
+    consumer: *std.Build.Module,
+    /// Full Dep imports (zon_dep, direct, or named mod).
+    deps: []const Dep = &.{},
+    /// Shorthand: each string becomes an import of the module with
+    /// that name from the registry.
+    mod_imports: []const []const u8 = &.{},
+    /// If true, import ALL registered modules by their registry name.
+    import_all: bool = false,
+    /// For `import_all` + `module()`: skip self-import by pointer.
+    self_module: ?*std.Build.Module = null,
 };
 
 /// Options for `init`.
@@ -63,6 +81,11 @@ pub const Context = struct {
     /// Internal module registry. Populated by `ctx.module()`.
     /// Heap-allocated so Context remains copyable.
     modules: *std.StringArrayHashMapUnmanaged(*std.Build.Module),
+    /// Deferred import lists. Populated by `module()`, `app()`,
+    /// `tests()`, `lib()`. Resolved by `ensureResolved()`.
+    pending: *std.ArrayListUnmanaged(PendingImports),
+    /// Whether deferred resolution has already run.
+    resolved: *bool,
 
     /// Build an executable. See `app.zig` for options.
     pub const app = app_mod.app;
@@ -80,8 +103,74 @@ pub const Context = struct {
     pub const module = module_mod.module;
     /// Test every registered module. See `modules.zig`.
     pub const testModules = modules_mod.testModules;
-    /// Resolve a slice of Deps into imports on a module.
-    pub const resolveDeps = resolveDepsFn;
+
+    /// Enqueue a pending import list for deferred resolution.
+    pub fn addPending(ctx: Context, pending: PendingImports) void {
+        ctx.pending.append(ctx.b.allocator, pending) catch @panic("OOM");
+    }
+
+    /// Ensure all deferred imports have been resolved. Idempotent.
+    /// Called automatically by `help()`, `testModules()`, `releases()`,
+    /// and `finalize()`.
+    pub fn ensureResolved(ctx: Context) void {
+        if (ctx.resolved.*) return;
+        ctx.resolved.* = true;
+
+        for (ctx.pending.items) |p| {
+            // 1. Resolve full Dep entries
+            for (p.deps) |dep| {
+                switch (dep) {
+                    .mod => |name| {
+                        const mod = ctx.modules.get(name) orelse {
+                            std.debug.panic(
+                                "ziobuild: module '{s}' not found in registry. Registered modules: {s}",
+                                .{ name, registeredModuleNames(ctx) },
+                            );
+                        };
+                        p.consumer.addImport(name, mod);
+                    },
+                    .zon_dep => |name| {
+                        deps_mod.resolveZonDep(
+                            ctx.b,
+                            p.consumer,
+                            name,
+                            p.consumer.resolved_target orelse ctx.target,
+                            p.consumer.optimize orelse ctx.optimize,
+                        );
+                    },
+                    .direct => |d| {
+                        p.consumer.addImport(d.name, d.module);
+                    },
+                }
+            }
+
+            // 2. Resolve mod_imports shorthand
+            for (p.mod_imports) |name| {
+                const mod = ctx.modules.get(name) orelse {
+                    std.debug.panic(
+                        "ziobuild: module '{s}' not found in registry (via mod_imports). Registered modules: {s}",
+                        .{ name, registeredModuleNames(ctx) },
+                    );
+                };
+                p.consumer.addImport(name, mod);
+            }
+
+            // 3. Resolve import_all
+            if (p.import_all) {
+                for (ctx.modules.keys(), ctx.modules.values()) |name, mod| {
+                    // Skip self-import (pointer comparison)
+                    if (p.self_module != null and mod == p.self_module.?) continue;
+                    p.consumer.addImport(name, mod);
+                }
+            }
+        }
+    }
+
+    /// Explicit finalization. Resolves all deferred imports.
+    /// Only needed if you don't call `help()` (which auto-resolves).
+    pub fn finalize(ctx: Context) void {
+        ctx.ensureResolved();
+    }
 };
 
 /// Build a `Context`. Resolves target and optimize defaults from the
@@ -90,46 +179,22 @@ pub const Context = struct {
 pub fn init(b: *std.Build, options: InitOptions) Context {
     const modules = b.allocator.create(std.StringArrayHashMapUnmanaged(*std.Build.Module)) catch @panic("OOM");
     modules.* = .empty;
+
+    const pending = b.allocator.create(std.ArrayListUnmanaged(PendingImports)) catch @panic("OOM");
+    pending.* = .empty;
+
+    const resolved = b.allocator.create(bool) catch @panic("OOM");
+    resolved.* = false;
+
     return .{
         .b = b,
         .name = options.name,
         .target = options.target orelse b.standardTargetOptions(.{}),
         .optimize = options.optimize orelse b.standardOptimizeOption(.{}),
         .modules = modules,
+        .pending = pending,
+        .resolved = resolved,
     };
-}
-
-/// Resolve a slice of `Dep`s into actual imports on `consumer`.
-pub fn resolveDepsFn(
-    ctx: Context,
-    consumer: *std.Build.Module,
-    deps: []const Dep,
-) void {
-    for (deps) |dep| {
-        switch (dep) {
-            .module_registry => |name| {
-                const mod = ctx.modules.get(name) orelse {
-                    std.debug.panic(
-                        "ziobuild: module '{s}' not found in registry. Registered modules: {s}",
-                        .{ name, registeredModuleNames(ctx) },
-                    );
-                };
-                consumer.addImport(name, mod);
-            },
-            .zon_dep => |name| {
-                deps_mod.resolveZonDep(
-                    ctx.b,
-                    consumer,
-                    name,
-                    consumer.resolved_target orelse ctx.target,
-                    consumer.optimize orelse ctx.optimize,
-                );
-            },
-            .direct => |d| {
-                consumer.addImport(d.name, d.module);
-            },
-        }
-    }
 }
 
 /// Comma-separated list of registered module names for diagnostics.

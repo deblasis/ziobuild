@@ -3,11 +3,10 @@
 //! The default `zig build --help` is unreadable on real projects, so
 //! this is a strict improvement.
 //!
-//! Implementation: a custom `Step` whose `makeFn` walks
-//! `b.top_level_steps`. Each entry is a `*TopLevelStep` (an
-//! unexported struct in std.Build, but its `step.name` and
-//! `description` fields are public-on-the-instance and readable from
-//! outside the file).
+//! v0.3: Calls `ensureResolved()` so all deferred imports are wired
+//! up before the build graph is evaluated. This means `help()` is the
+//! natural last call in every `build.zig` and implicitly finalizes
+//! the module graph.
 
 const std = @import("std");
 
@@ -15,6 +14,11 @@ const context_mod = @import("context.zig");
 
 /// Register a top-level `help` step on `ctx.b`.
 pub fn help(ctx: context_mod.Context) void {
+    // Ensure all deferred imports are resolved before the build graph
+    // is evaluated. This is the implicit finalization point — callers
+    // who don't use `help()` should call `ctx.finalize()` instead.
+    ctx.ensureResolved();
+
     const b = ctx.b;
     const step = b.step("help", "List all build steps with descriptions");
     const make_step = b.allocator.create(MakeHelpStep) catch @panic("OOM");

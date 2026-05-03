@@ -4,7 +4,7 @@ Build and development instructions for AI coding agents working on this reposito
 
 ## What this is
 
-ziobuild: declarative `build.zig` DSL. Replaces 80+ line build files with a dozen calls. Every helper returns the underlying `*std.Build.Step.Compile` so you can drop down to raw `std.Build` whenever you want.
+ziobuild: declarative `build.zig` DSL. Replaces 80+ line build files with a dozen calls. Every helper returns the underlying `*std.Build.Step.Compile` so you can drop down to raw `std.Build` whenever you want. v0.3 adds deferred resolution (order-independent modules), `Dep.mod` shorthand, `mod_imports`, and `import_all`.
 
 ## Build
 
@@ -38,22 +38,30 @@ zig fmt --check src tests examples build.zig
 
 ```
 src/
-  root.zig          public re-exports (init, Context, Target, CustomTarget, options types)
-  context.zig       Context: bundles *Build, target, optimize, project name
+  root.zig          public re-exports (init, Context, Dep, Target, CustomTarget, options types)
+  context.zig       Context: bundles *Build, target, optimize, project name, deferred resolution
+  module.zig        Context.module: register named modules (order-independent)
+  modules.zig       Context.testModules: test all registered modules
   app.zig           Context.app: build an executable
   lib.zig           Context.lib: build a library
   tests.zig         Context.tests: declare a test step
   examples_glob.zig Context.examples: walk pattern, register one exe per match
   releases.zig      Context.releases: cross-compile release matrix
-  help.zig          Context.help: pretty-print available steps
-  deps.zig          resolve dep names against build.zig.zon
+  help.zig          Context.help: pretty-print available steps (auto-finalizes)
+  deps.zig          resolve Dep.zon_dep against build.zig.zon
+  options.zig       typed build option helpers (boolOption, stringOption, etc.)
   target.zig        cross-compile target presets (linux, darwin, windows)
 tests/
-  integration.zig          end-to-end fixture tests
-  fixtures/smoke/          minimal build.zig using ziobuild
-  fixtures/kitchen_sink/   full-featured build (app, lib, tests, examples, releases, help)
+  integration.zig              end-to-end fixture tests
+  fixtures/smoke/              minimal build.zig using ziobuild
+  fixtures/kitchen_sink/       full-featured build (app, lib, tests, examples, releases, help)
+  fixtures/modules/            module registry + cross-module imports
+  fixtures/modules_reverse/    deferred resolution (reverse declaration order)
+  fixtures/mod_imports/        mod_imports shorthand
+  fixtures/import_all/         import_all flag + self-import exclusion
+  fixtures/ghostty_mini/       real-world comparison (plain vs ziobuild)
 examples/
-  minimal/                 headline README example
+  minimal/                     headline README example
 build.zig           build configuration
 build.zig.zon       package manifest
 ```

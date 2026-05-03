@@ -13,10 +13,14 @@
 //! If the prefix dir does not exist, returns an empty slice. That
 //! way calling `examples("examples/*/main.zig")` on a project that
 //! has no examples yet is a no-op rather than a build failure.
+//!
+//! v0.3: Calls `ensureResolved()` before wiring example imports so
+//! deferred module references are visible.
 
 const std = @import("std");
 
 const context_mod = @import("context.zig");
+const deps_mod = @import("deps.zig");
 
 /// Build-script-side error raised internally for malformed patterns.
 /// Surfaces as a panic with context.
@@ -50,6 +54,9 @@ pub fn examplesWithImports(
 
     const b = ctx.b;
     const arena = b.allocator;
+
+    // Resolve deferred imports before wiring examples.
+    ctx.ensureResolved();
 
     var compiles: std.array_list.Managed(*std.Build.Step.Compile) = .init(arena);
     // Caller doesn't free; `b.allocator` is an arena tied to the build.
@@ -92,7 +99,35 @@ pub fn examplesWithImports(
             .target = ctx.target,
             .optimize = ctx.optimize,
         });
-        ctx.resolveDeps(mod, imports);
+
+        // Resolve imports eagerly here since we already called
+        // ensureResolved() above — all modules are in the registry.
+        for (imports) |dep| {
+            switch (dep) {
+                .mod => |dep_name| {
+                    const m = ctx.modules.get(dep_name) orelse {
+                        std.debug.panic(
+                            "ziobuild.examples: module '{s}' not found in registry. Registered modules: {s}",
+                            .{ dep_name, context_mod.registeredModuleNames(ctx) },
+                        );
+                    };
+                    mod.addImport(dep_name, m);
+                },
+                .zon_dep => |dep_name| {
+                    deps_mod.resolveZonDep(
+                        b,
+                        mod,
+                        dep_name,
+                        ctx.target,
+                        ctx.optimize,
+                    );
+                },
+                .direct => |d| {
+                    mod.addImport(d.name, d.module);
+                },
+            }
+        }
+
         const exe = b.addExecutable(.{
             .name = name,
             .root_module = mod,

@@ -5,6 +5,9 @@
 //! Release artifacts inherit all imports from the template executable,
 //! so cross-compiled binaries have the same import table as the
 //! development build.
+//!
+//! v0.3: Calls `ensureResolved()` before reading the template's
+//! import table so deferred imports are visible.
 
 const std = @import("std");
 
@@ -42,6 +45,9 @@ pub fn releases(
 ) []const *std.Build.Step.Compile {
     const b = ctx.b;
     const arena = b.allocator;
+
+    // Resolve deferred imports before reading the template's import table.
+    ctx.ensureResolved();
 
     const aggregate = b.step(options.step_name, "Build release matrix");
 

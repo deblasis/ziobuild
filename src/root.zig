@@ -5,6 +5,15 @@
 //! underlying `*std.Build.Step.Compile`, so callers can drop down to
 //! raw `std.Build` whenever they want. Nothing is hidden.
 //!
+//! v0.3 highlights:
+//!   - **Deferred resolution**: modules can be declared in any order.
+//!     Imports are resolved lazily when the build graph is finalized
+//!     (via `help()`, `testModules()`, `releases()`, or `finalize()`).
+//!   - **`Dep.mod`**: renamed from `module_registry` -- shorter, cleaner.
+//!   - **`mod_imports`**: shorthand `[]const []const u8` for the common
+//!     case of importing modules by name.
+//!   - **`import_all`**: import ALL registered modules in one flag.
+//!
 //! Quickstart:
 //!
 //!     const std = @import("std");
@@ -13,22 +22,13 @@
 //!     pub fn build(b: *std.Build) void {
 //!         const ctx = zb.init(b, .{ .name = "myapp" });
 //!
-//!         // Register internal modules
 //!         _ = ctx.module("mylib", .{ .root = "src/lib.zig" });
 //!
 //!         const app = ctx.app(.{
 //!             .root = "src/main.zig",
-//!             .imports = &.{
-//!                 .{ .module_registry = "mylib" },
-//!                 .{ .zon_dep = "ziosh" },
-//!             },
+//!             .mod_imports = &.{"mylib"},
 //!         });
 //!         _ = ctx.testModules(.{});
-//!         _ = ctx.examples("examples/*/main.zig");
-//!         _ = ctx.releases(.{
-//!             .of = app,
-//!             .targets = &.{ .linux_x64, .darwin_arm64, .windows_x64 },
-//!         });
 //!         ctx.help();
 //!     }
 
