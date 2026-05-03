@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `ctx.help()` now calls `ensureResolved()` before registering the help step.
 - `ctx.testModules()` now calls `ensureResolved()` before iterating the module registry.
 - `ctx.releases()` now calls `ensureResolved()` before reading the template's import table.
+- **Fixed**: `ensureResolved()` is incremental — calling it before all registrations are complete (e.g. `testModules()` before `app()`) no longer skips later pending imports. Safe to call at any point.
+- `resolveDepsNow()` shared helper eliminates Dep resolution code duplication.
 
 ## [0.2.0] - 2026-05-03
 

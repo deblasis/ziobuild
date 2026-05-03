@@ -214,7 +214,7 @@ pub const Dep = union(enum) {
 
 ### Deferred resolution
 
-Imports are resolved lazily, not at registration time. **Modules can be declared in any order.** Resolution happens when `help()`, `testModules()`, `releases()`, or `finalize()` is called.
+Imports are resolved lazily, not at registration time. **Modules can be declared in any order.** Resolution is incremental — calling `ensureResolved()` (via `help()`, `testModules()`, `releases()`, or `finalize()`) at any point only resolves entries registered so far; later registrations are processed on the next call. This means `testModules()` can safely be called before `app()` without skipping the app's imports.
 
 ### `mod_imports` shorthand
 
