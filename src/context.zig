@@ -84,8 +84,10 @@ pub const Context = struct {
     /// Deferred import lists. Populated by `module()`, `app()`,
     /// `tests()`, `lib()`. Resolved by `ensureResolved()`.
     pending: *std.ArrayListUnmanaged(PendingImports),
-    /// Whether deferred resolution has already run.
-    resolved: *bool,
+    /// Index of the first unresolved pending entry. Allows incremental
+    /// resolution so that calls to ensureResolved() before all
+    /// registrations are complete don't skip later entries.
+    resolved_up_to: *usize,
 
     /// Build an executable. See `app.zig` for options.
     pub const app = app_mod.app;
@@ -109,14 +111,17 @@ pub const Context = struct {
         ctx.pending.append(ctx.b.allocator, pending) catch @panic("OOM");
     }
 
-    /// Ensure all deferred imports have been resolved. Idempotent.
+    /// Ensure all deferred imports have been resolved. Incremental:
+    /// each call processes only entries added since the last call.
     /// Called automatically by `help()`, `testModules()`, `releases()`,
     /// and `finalize()`.
     pub fn ensureResolved(ctx: Context) void {
-        if (ctx.resolved.*) return;
-        ctx.resolved.* = true;
+        const start = ctx.resolved_up_to.*;
+        const end = ctx.pending.items.len;
+        if (start >= end) return;
+        ctx.resolved_up_to.* = end;
 
-        for (ctx.pending.items) |p| {
+        for (ctx.pending.items[start..end]) |p| {
             // 1. Resolve full Dep entries
             resolveDepsNow(ctx, p.consumer, p.deps);
 
@@ -159,8 +164,8 @@ pub fn init(b: *std.Build, options: InitOptions) Context {
     const pending = b.allocator.create(std.ArrayListUnmanaged(PendingImports)) catch @panic("OOM");
     pending.* = .empty;
 
-    const resolved = b.allocator.create(bool) catch @panic("OOM");
-    resolved.* = false;
+    const resolved_up_to = b.allocator.create(usize) catch @panic("OOM");
+    resolved_up_to.* = 0;
 
     return .{
         .b = b,
@@ -169,7 +174,7 @@ pub fn init(b: *std.Build, options: InitOptions) Context {
         .optimize = options.optimize orelse b.standardOptimizeOption(.{}),
         .modules = modules,
         .pending = pending,
-        .resolved = resolved,
+        .resolved_up_to = resolved_up_to,
     };
 }
 
