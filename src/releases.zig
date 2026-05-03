@@ -2,9 +2,9 @@
 //! installs each under `zig-out/release/<dir-name>/`. Aggregates them
 //! all under a single top-level step (default `release`).
 //!
-//! The `targets` slice is a list of `Target` enum presets; the
-//! `custom_targets` slice is the escape hatch for arbitrary
-//! `std.Target.Query` values. Pass either or both.
+//! Release artifacts inherit all imports from the template executable,
+//! so cross-compiled binaries have the same import table as the
+//! development build.
 
 const std = @import("std");
 
@@ -13,10 +13,13 @@ const target_mod = @import("target.zig");
 
 /// Options for `Context.releases`.
 pub const Options = struct {
-    /// Template app: provides the root module path and the dep
-    /// import set. Re-used as a recipe; ziobuild builds a fresh
-    /// `addExecutable` per target.
+    /// Template app: provides the root source path and the import
+    /// set. Re-used as a recipe; ziobuild builds a fresh
+    /// `addExecutable` per target with the same imports.
     of: *std.Build.Step.Compile,
+    /// Additional imports for each release artifact, beyond what the
+    /// template already carries.
+    imports: []const context_mod.Dep = &.{},
     /// Preset targets.
     targets: []const target_mod.Target = &.{},
     /// Escape hatch: arbitrary target queries.
@@ -50,16 +53,20 @@ pub fn releases(
     };
     const exe_name = options.of.name;
 
+    // Collect the import table from the template's root module so
+    // each release build gets the same imports.
+    const template_imports = &options.of.root_module.import_table;
+
     var idx: usize = 0;
     for (options.targets) |t| {
-        out[idx] = buildOne(b, root_path, exe_name, t.dirName(), t.query(), options);
+        out[idx] = buildOne(b, root_path, exe_name, t.query(), template_imports, options);
         aggregate.dependOn(&b.addInstallArtifact(out[idx], .{
             .dest_dir = .{ .override = .{ .custom = b.fmt("release/{s}", .{t.dirName()}) } },
         }).step);
         idx += 1;
     }
     for (options.custom_targets) |t| {
-        out[idx] = buildOne(b, root_path, exe_name, t.name, t.query, options);
+        out[idx] = buildOne(b, root_path, exe_name, t.query, template_imports, options);
         aggregate.dependOn(&b.addInstallArtifact(out[idx], .{
             .dest_dir = .{ .override = .{ .custom = b.fmt("release/{s}", .{t.name}) } },
         }).step);
@@ -72,11 +79,10 @@ fn buildOne(
     b: *std.Build,
     root_path: []const u8,
     exe_name: []const u8,
-    dir: []const u8,
     query: std.Target.Query,
+    template_imports: *const std.StringArrayHashMapUnmanaged(*std.Build.Module),
     options: Options,
 ) *std.Build.Step.Compile {
-    _ = dir;
     const resolved = b.resolveTargetQuery(query);
     const mod = b.createModule(.{
         .root_source_file = b.path(root_path),
@@ -84,6 +90,12 @@ fn buildOne(
         .optimize = options.optimize,
         .strip = options.strip,
     });
+
+    // Copy all imports from the template module
+    for (template_imports.keys(), template_imports.values()) |name, imp_mod| {
+        mod.addImport(name, imp_mod);
+    }
+
     return b.addExecutable(.{
         .name = exe_name,
         .root_module = mod,
@@ -102,6 +114,7 @@ fn sourceRoot(c: *std.Build.Step.Compile) ?[]const u8 {
 }
 
 test "releases options struct compiles" {
-    // Real coverage in tests/fixtures/kitchen_sink.
+    const _opts: Options = .{ .of = undefined };
+    _ = _opts;
     try std.testing.expect(true);
 }

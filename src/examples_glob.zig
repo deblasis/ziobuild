@@ -29,10 +29,20 @@ pub const PatternError = error{
 
 /// Walk the build root for `pattern` and register one example per
 /// match. Returns the slice of compile steps so callers can post-
-/// process if needed.
+/// process if needed. No imports are attached to examples.
 pub fn examples(
     ctx: context_mod.Context,
     comptime pattern: []const u8,
+) []const *std.Build.Step.Compile {
+    return examplesWithImports(ctx, pattern, &.{});
+}
+
+/// Like `examples()` but attaches the given imports to every example
+/// executable.
+pub fn examplesWithImports(
+    ctx: context_mod.Context,
+    comptime pattern: []const u8,
+    imports: []const context_mod.Dep,
 ) []const *std.Build.Step.Compile {
     const split = comptime parsePattern(pattern);
     const prefix = split.prefix;
@@ -82,6 +92,7 @@ pub fn examples(
             .target = ctx.target,
             .optimize = ctx.optimize,
         });
+        ctx.resolveDeps(mod, imports);
         const exe = b.addExecutable(.{
             .name = name,
             .root_module = mod,

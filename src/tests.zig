@@ -12,13 +12,14 @@ pub const Options = struct {
     root: []const u8,
     /// Test binary name (cosmetic). Defaults to `test`.
     name: ?[]const u8 = null,
-    /// Dep names declared in `build.zig.zon`.
-    deps: []const []const u8 = &.{},
-    /// Override the Context default.
+    /// Imports to add to the test module.
+    imports: []const context_mod.Dep = &.{},
+    /// Override the Context default target.
     target: ?std.Build.ResolvedTarget = null,
-    /// Override the Context default.
+    /// Override the Context default optimize.
     optimize: ?std.builtin.OptimizeMode = null,
-    /// Top-level step name. Defaults to `test`.
+    /// Top-level step name. Defaults to `test`. Must be unique if
+    /// you call `tests()` multiple times.
     step_name: ?[]const u8 = null,
     /// Description for the step. Defaults to "Run tests".
     step_description: []const u8 = "Run tests",
@@ -29,7 +30,13 @@ pub fn tests(ctx: context_mod.Context, options: Options) *std.Build.Step.Compile
     const target = options.target orelse ctx.target;
     const optimize = options.optimize orelse ctx.optimize;
 
-    const mod = context_mod.buildModule(ctx, options.root, options.deps, target, optimize);
+    const mod = ctx.b.createModule(.{
+        .root_source_file = ctx.b.path(options.root),
+        .target = target,
+        .optimize = optimize,
+    });
+    ctx.resolveDeps(mod, options.imports);
+
     const test_exe = ctx.b.addTest(.{
         .name = options.name orelse "test",
         .root_module = mod,
