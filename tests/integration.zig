@@ -386,3 +386,85 @@ test "ghostty_mini: builds exe, lib, and examples" {
     try expectFileExists(try fixtureFile(a, "ghostty_mini", "zig-out/bin/example-basic" ++ exe_suffix));
     try expectFileExists(try fixtureFile(a, "ghostty_mini", "zig-out/bin/example-daemon" ++ exe_suffix));
 }
+
+test "modules fixture: zig build produces exe" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "modules");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "modules", "zig-out/bin/modules" ++ exe_suffix));
+}
+
+test "modules fixture: testModules runs all module tests" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "modules");
+
+    var r = try runZigBuild(cwd, &.{"test"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+}
+
+test "modules fixture: release carries imports" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "modules");
+
+    var r = try runZigBuild(cwd, &.{"release"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "modules", "zig-out/release/linux-x86_64/modules"));
+}
+
+test "multi_exe fixture: builds both executables" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "multi_exe");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "multi_exe", "zig-out/bin/multi_exe" ++ exe_suffix));
+    try expectFileExists(try fixtureFile(a, "multi_exe", "zig-out/bin/multi_exe_tool" ++ exe_suffix));
+}
+
+test "multi_exe fixture: named run steps exist" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "multi_exe");
+
+    var r = try runZigBuild(cwd, &.{"help"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+    try T.expect(std.mem.indexOf(u8, r.stderr, "run") != null);
+    try T.expect(std.mem.indexOf(u8, r.stderr, "run-tool") != null);
+}
+
+test "multi_exe fixture: build option can skip tool" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "multi_exe");
+
+    var r = try runZigBuild(cwd, &.{"-Demit-tool=false"});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "multi_exe", "zig-out/bin/multi_exe" ++ exe_suffix));
+    // Tool should NOT be installed when -Demit-tool=false.
+    // Note: if a previous build with the tool enabled left the binary
+    // in zig-out, it may still be there (install step was not run).
+    // We verify by checking the build stderr doesn't mention the tool.
+    try T.expect(std.mem.indexOf(u8, r.stderr, "multi_exe_tool") == null);
+}

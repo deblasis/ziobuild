@@ -8,12 +8,19 @@ const std = @import("std");
 pub const init = @import("src/context.zig").init;
 pub const Context = @import("src/context.zig").Context;
 pub const InitOptions = @import("src/context.zig").InitOptions;
+pub const Dep = @import("src/context.zig").Dep;
 pub const Target = @import("src/target.zig").Target;
 pub const CustomTarget = @import("src/target.zig").CustomTarget;
 pub const AppOptions = @import("src/app.zig").Options;
 pub const LibOptions = @import("src/lib.zig").Options;
 pub const TestsOptions = @import("src/tests.zig").Options;
 pub const ReleasesOptions = @import("src/releases.zig").Options;
+pub const ModuleOptions = @import("src/module.zig").Options;
+pub const TestModulesOptions = @import("src/modules.zig").Options;
+pub const boolOption = @import("src/options.zig").boolOption;
+pub const stringOption = @import("src/options.zig").stringOption;
+pub const enumOption = @import("src/options.zig").enumOption;
+pub const intOption = @import("src/options.zig").intOption;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
