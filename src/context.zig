@@ -118,31 +118,7 @@ pub const Context = struct {
 
         for (ctx.pending.items) |p| {
             // 1. Resolve full Dep entries
-            for (p.deps) |dep| {
-                switch (dep) {
-                    .mod => |name| {
-                        const mod = ctx.modules.get(name) orelse {
-                            std.debug.panic(
-                                "ziobuild: module '{s}' not found in registry. Registered modules: {s}",
-                                .{ name, registeredModuleNames(ctx) },
-                            );
-                        };
-                        p.consumer.addImport(name, mod);
-                    },
-                    .zon_dep => |name| {
-                        deps_mod.resolveZonDep(
-                            ctx.b,
-                            p.consumer,
-                            name,
-                            p.consumer.resolved_target orelse ctx.target,
-                            p.consumer.optimize orelse ctx.optimize,
-                        );
-                    },
-                    .direct => |d| {
-                        p.consumer.addImport(d.name, d.module);
-                    },
-                }
-            }
+            resolveDepsNow(ctx, p.consumer, p.deps);
 
             // 2. Resolve mod_imports shorthand
             for (p.mod_imports) |name| {
@@ -195,6 +171,41 @@ pub fn init(b: *std.Build, options: InitOptions) Context {
         .pending = pending,
         .resolved = resolved,
     };
+}
+
+/// Resolve a slice of Deps against the current registry state.
+/// Used by `ensureResolved()` and `examplesWithImports()` after
+/// the registry is finalized. Not part of the public API.
+pub fn resolveDepsNow(
+    ctx: Context,
+    consumer: *std.Build.Module,
+    deps: []const Dep,
+) void {
+    for (deps) |dep| {
+        switch (dep) {
+            .mod => |name| {
+                const mod = ctx.modules.get(name) orelse {
+                    std.debug.panic(
+                        "ziobuild: module '{s}' not found in registry. Registered modules: {s}",
+                        .{ name, registeredModuleNames(ctx) },
+                    );
+                };
+                consumer.addImport(name, mod);
+            },
+            .zon_dep => |name| {
+                deps_mod.resolveZonDep(
+                    ctx.b,
+                    consumer,
+                    name,
+                    consumer.resolved_target orelse ctx.target,
+                    consumer.optimize orelse ctx.optimize,
+                );
+            },
+            .direct => |d| {
+                consumer.addImport(d.name, d.module);
+            },
+        }
+    }
 }
 
 /// Comma-separated list of registered module names for diagnostics.

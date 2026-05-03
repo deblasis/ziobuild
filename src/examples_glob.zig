@@ -20,7 +20,6 @@
 const std = @import("std");
 
 const context_mod = @import("context.zig");
-const deps_mod = @import("deps.zig");
 
 /// Build-script-side error raised internally for malformed patterns.
 /// Surfaces as a panic with context.
@@ -102,31 +101,7 @@ pub fn examplesWithImports(
 
         // Resolve imports eagerly here since we already called
         // ensureResolved() above — all modules are in the registry.
-        for (imports) |dep| {
-            switch (dep) {
-                .mod => |dep_name| {
-                    const m = ctx.modules.get(dep_name) orelse {
-                        std.debug.panic(
-                            "ziobuild.examples: module '{s}' not found in registry. Registered modules: {s}",
-                            .{ dep_name, context_mod.registeredModuleNames(ctx) },
-                        );
-                    };
-                    mod.addImport(dep_name, m);
-                },
-                .zon_dep => |dep_name| {
-                    deps_mod.resolveZonDep(
-                        b,
-                        mod,
-                        dep_name,
-                        ctx.target,
-                        ctx.optimize,
-                    );
-                },
-                .direct => |d| {
-                    mod.addImport(d.name, d.module);
-                },
-            }
-        }
+        context_mod.resolveDepsNow(ctx, mod, imports);
 
         const exe = b.addExecutable(.{
             .name = name,
