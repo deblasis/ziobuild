@@ -1,6 +1,8 @@
 //! `Context.tests` declares a test compile, wraps it with
 //! `addRunArtifact`, and registers a top-level test step (default
 //! name `test`) that depends on the run.
+//!
+//! v0.3: Imports are deferred.
 
 const std = @import("std");
 
@@ -12,13 +14,19 @@ pub const Options = struct {
     root: []const u8,
     /// Test binary name (cosmetic). Defaults to `test`.
     name: ?[]const u8 = null,
-    /// Dep names declared in `build.zig.zon`.
-    deps: []const []const u8 = &.{},
-    /// Override the Context default.
+    /// Imports to add to the test module.
+    imports: []const context_mod.Dep = &.{},
+    /// Shorthand: each string becomes an import of the module with
+    /// that name from the registry.
+    mod_imports: []const []const u8 = &.{},
+    /// If true, import ALL registered modules by their registry name.
+    import_all: bool = false,
+    /// Override the Context default target.
     target: ?std.Build.ResolvedTarget = null,
-    /// Override the Context default.
+    /// Override the Context default optimize.
     optimize: ?std.builtin.OptimizeMode = null,
-    /// Top-level step name. Defaults to `test`.
+    /// Top-level step name. Defaults to `test`. Must be unique if
+    /// you call `tests()` multiple times.
     step_name: ?[]const u8 = null,
     /// Description for the step. Defaults to "Run tests".
     step_description: []const u8 = "Run tests",
@@ -29,7 +37,23 @@ pub fn tests(ctx: context_mod.Context, options: Options) *std.Build.Step.Compile
     const target = options.target orelse ctx.target;
     const optimize = options.optimize orelse ctx.optimize;
 
-    const mod = context_mod.buildModule(ctx, options.root, options.deps, target, optimize);
+    const mod = ctx.b.createModule(.{
+        .root_source_file = ctx.b.path(options.root),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Defer import resolution.
+    const has_imports = options.imports.len > 0 or options.mod_imports.len > 0 or options.import_all;
+    if (has_imports) {
+        ctx.addPending(.{
+            .consumer = mod,
+            .deps = options.imports,
+            .mod_imports = options.mod_imports,
+            .import_all = options.import_all,
+        });
+    }
+
     const test_exe = ctx.b.addTest(.{
         .name = options.name orelse "test",
         .root_module = mod,

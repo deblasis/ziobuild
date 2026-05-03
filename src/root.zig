@@ -5,6 +5,15 @@
 //! underlying `*std.Build.Step.Compile`, so callers can drop down to
 //! raw `std.Build` whenever they want. Nothing is hidden.
 //!
+//! v0.3 highlights:
+//!   - **Deferred resolution**: modules can be declared in any order.
+//!     Imports are resolved lazily when the build graph is finalized
+//!     (via `help()`, `testModules()`, `releases()`, or `finalize()`).
+//!   - **`Dep.mod`**: renamed from `module_registry` -- shorter, cleaner.
+//!   - **`mod_imports`**: shorthand `[]const []const u8` for the common
+//!     case of importing modules by name.
+//!   - **`import_all`**: import ALL registered modules in one flag.
+//!
 //! Quickstart:
 //!
 //!     const std = @import("std");
@@ -12,16 +21,14 @@
 //!
 //!     pub fn build(b: *std.Build) void {
 //!         const ctx = zb.init(b, .{ .name = "myapp" });
+//!
+//!         _ = ctx.module("mylib", .{ .root = "src/lib.zig" });
+//!
 //!         const app = ctx.app(.{
 //!             .root = "src/main.zig",
-//!             .deps = &.{ "ziosh", "zioarg" },
+//!             .mod_imports = &.{"mylib"},
 //!         });
-//!         _ = ctx.tests(.{ .root = "src/main.zig" });
-//!         _ = ctx.examples("examples/*/main.zig");
-//!         _ = ctx.releases(.{
-//!             .of = app,
-//!             .targets = &.{ .linux_x64, .darwin_arm64, .windows_x64 },
-//!         });
+//!         _ = ctx.testModules(.{});
 //!         ctx.help();
 //!     }
 
@@ -36,6 +43,9 @@ const examples_mod = @import("examples_glob.zig");
 const releases_mod = @import("releases.zig");
 const help_mod = @import("help.zig");
 const deps_mod = @import("deps.zig");
+const module_mod = @import("module.zig");
+const modules_mod = @import("modules.zig");
+const options_mod = @import("options.zig");
 
 /// Build a `Context` from a `*std.Build`. Entry point.
 pub const init = context_mod.init;
@@ -45,6 +55,9 @@ pub const Context = context_mod.Context;
 
 /// Options for `init`.
 pub const InitOptions = context_mod.InitOptions;
+
+/// Import descriptor for all helpers that accept deps.
+pub const Dep = context_mod.Dep;
 
 /// Cross-compile preset for `releases`.
 pub const Target = target_mod.Target;
@@ -64,6 +77,24 @@ pub const TestsOptions = tests_mod.Options;
 /// Options for `Context.releases`.
 pub const ReleasesOptions = releases_mod.Options;
 
+/// Options for `Context.module`.
+pub const ModuleOptions = module_mod.Options;
+
+/// Options for `Context.testModules`.
+pub const TestModulesOptions = modules_mod.Options;
+
+/// Declare a boolean build option with a default.
+pub const boolOption = options_mod.boolOption;
+
+/// Declare a string build option with a default.
+pub const stringOption = options_mod.stringOption;
+
+/// Declare an enum build option with a default.
+pub const enumOption = options_mod.enumOption;
+
+/// Declare an integer build option with a default.
+pub const intOption = options_mod.intOption;
+
 test {
     _ = context_mod;
     _ = target_mod;
@@ -74,4 +105,7 @@ test {
     _ = releases_mod;
     _ = help_mod;
     _ = deps_mod;
+    _ = module_mod;
+    _ = modules_mod;
+    _ = options_mod;
 }

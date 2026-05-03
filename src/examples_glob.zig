@@ -13,6 +13,9 @@
 //! If the prefix dir does not exist, returns an empty slice. That
 //! way calling `examples("examples/*/main.zig")` on a project that
 //! has no examples yet is a no-op rather than a build failure.
+//!
+//! v0.3: Calls `ensureResolved()` before wiring example imports so
+//! deferred module references are visible.
 
 const std = @import("std");
 
@@ -29,10 +32,20 @@ pub const PatternError = error{
 
 /// Walk the build root for `pattern` and register one example per
 /// match. Returns the slice of compile steps so callers can post-
-/// process if needed.
+/// process if needed. No imports are attached to examples.
 pub fn examples(
     ctx: context_mod.Context,
     comptime pattern: []const u8,
+) []const *std.Build.Step.Compile {
+    return examplesWithImports(ctx, pattern, &.{});
+}
+
+/// Like `examples()` but attaches the given imports to every example
+/// executable.
+pub fn examplesWithImports(
+    ctx: context_mod.Context,
+    comptime pattern: []const u8,
+    imports: []const context_mod.Dep,
 ) []const *std.Build.Step.Compile {
     const split = comptime parsePattern(pattern);
     const prefix = split.prefix;
@@ -40,6 +53,9 @@ pub fn examples(
 
     const b = ctx.b;
     const arena = b.allocator;
+
+    // Resolve deferred imports before wiring examples.
+    ctx.ensureResolved();
 
     var compiles: std.array_list.Managed(*std.Build.Step.Compile) = .init(arena);
     // Caller doesn't free; `b.allocator` is an arena tied to the build.
@@ -82,6 +98,11 @@ pub fn examples(
             .target = ctx.target,
             .optimize = ctx.optimize,
         });
+
+        // Resolve imports eagerly here since we already called
+        // ensureResolved() above — all modules are in the registry.
+        context_mod.resolveDepsNow(ctx, mod, imports);
+
         const exe = b.addExecutable(.{
             .name = name,
             .root_module = mod,
