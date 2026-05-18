@@ -1,0 +1,20 @@
+.{
+    .name = .overlay_test,
+    .version = "0.1.0",
+    .fingerprint = 0x1bcfde67f32c8286,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .dummy_dep = .{
+            .path = "../overlay/dummy_dep",
+        },
+        .ziobuild = .{
+            .path = "../../..",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "overlays",
+    },
+}

@@ -1,0 +1,20 @@
+.{
+    .name = .patches_test,
+    .version = "0.1.0",
+    .fingerprint = 0x40c7c8c925374e94,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .dummy_dep = .{
+            .path = "../patches/dummy_dep",
+        },
+        .ziobuild = .{
+            .path = "../../..",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "patches",
+    },
+}

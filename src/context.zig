@@ -24,6 +24,7 @@ const releases_mod = @import("releases.zig");
 const help_mod = @import("help.zig");
 const module_mod = @import("module.zig");
 const modules_mod = @import("modules.zig");
+const patch_mod = @import("patch.zig");
 
 /// A single import that can be attached to a module. Three sources:
 ///
@@ -51,6 +52,11 @@ pub const PendingImports = struct {
     /// For `import_all` + `module()`: skip self-import by pointer.
     self_module: ?*std.Build.Module = null,
 };
+
+/// A pending conditional patch. Registered via `ctx.patch()`,
+/// consumed during dependency resolution.
+pub const PendingPatch = patch_mod.PendingPatch;
+pub const PendingOverlay = patch_mod.PendingOverlay;
 
 /// Options for `init`.
 pub const InitOptions = struct {
@@ -88,6 +94,10 @@ pub const Context = struct {
     /// resolution so that calls to ensureResolved() before all
     /// registrations are complete don't skip later entries.
     resolved_up_to: *usize,
+    /// Pending conditional patches. Populated by `ctx.patch()`.
+    /// Consumed during dependency resolution.
+    patches: *std.ArrayListUnmanaged(patch_mod.PendingPatch),
+    overlays: *std.ArrayListUnmanaged(patch_mod.PendingOverlay),
 
     /// Build an executable. See `app.zig` for options.
     pub const app = app_mod.app;
@@ -105,6 +115,10 @@ pub const Context = struct {
     pub const module = module_mod.module;
     /// Test every registered module. See `modules.zig`.
     pub const testModules = modules_mod.testModules;
+    /// Register a conditional patch for a dependency.
+    pub const patch = patch_mod.patch;
+    /// Register a conditional file overlay for a dependency.
+    pub const overlay = patch_mod.overlay;
 
     /// Enqueue a pending import list for deferred resolution.
     pub fn addPending(ctx: Context, pending: PendingImports) void {
@@ -167,6 +181,12 @@ pub fn init(b: *std.Build, options: InitOptions) Context {
     const resolved_up_to = b.allocator.create(usize) catch @panic("OOM");
     resolved_up_to.* = 0;
 
+    const patches = b.allocator.create(std.ArrayListUnmanaged(patch_mod.PendingPatch)) catch @panic("OOM");
+    patches.* = .empty;
+
+    const overlays = b.allocator.create(std.ArrayListUnmanaged(patch_mod.PendingOverlay)) catch @panic("OOM");
+    overlays.* = .empty;
+
     return .{
         .b = b,
         .name = options.name,
@@ -175,6 +195,8 @@ pub fn init(b: *std.Build, options: InitOptions) Context {
         .modules = modules,
         .pending = pending,
         .resolved_up_to = resolved_up_to,
+        .patches = patches,
+        .overlays = overlays,
     };
 }
 
@@ -204,6 +226,7 @@ pub fn resolveDepsNow(
                     name,
                     consumer.resolved_target orelse ctx.target,
                     consumer.optimize orelse ctx.optimize,
+                    ctx,
                 );
             },
             .direct => |d| {

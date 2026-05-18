@@ -21,6 +21,10 @@ pub const boolOption = @import("src/options.zig").boolOption;
 pub const stringOption = @import("src/options.zig").stringOption;
 pub const enumOption = @import("src/options.zig").enumOption;
 pub const intOption = @import("src/options.zig").intOption;
+pub const Expr = @import("src/expr.zig").Expr;
+pub const ExprCmp = @import("src/expr.zig").Cmp;
+pub const PatchOptions = @import("src/patch.zig").Options;
+pub const OverlayOptions = @import("src/patch.zig").OverlayOptions;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});

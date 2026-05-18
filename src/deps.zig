@@ -5,16 +5,21 @@
 
 const std = @import("std");
 
+const context_mod = @import("context.zig");
+const patch_mod = @import("patch.zig");
+
 pub const Error = error{UndeclaredDep};
 
 /// Resolve a single ZON dependency by name and add it as an import
-/// on `consumer` under the same name.
+/// on `consumer` under the same name. If `maybe_ctx` is provided,
+/// any registered conditional patches for this dep are applied first.
 pub fn resolveZonDep(
     b: *std.Build,
     consumer: *std.Build.Module,
     name: []const u8,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
+    maybe_ctx: ?context_mod.Context,
 ) void {
     if (!declared(b, name)) {
         failMissing(b, name);
@@ -23,6 +28,13 @@ pub fn resolveZonDep(
         .target = target,
         .optimize = optimize,
     });
+
+    // Apply conditional patches if a Context was provided.
+    if (maybe_ctx) |ctx| {
+        patch_mod.applyPatches(ctx, name, dep);
+        patch_mod.applyOverlays(ctx, name, dep);
+    }
+
     consumer.addImport(name, dep.module(name));
 }
 

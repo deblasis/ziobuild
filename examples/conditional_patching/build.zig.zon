@@ -1,0 +1,17 @@
+.{
+    .name = .conditional_patching,
+    .version = "0.0.0",
+    .fingerprint = 0x52f756891d521c86,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .math_lib = .{ .path = "vendor/math_lib" },
+        .ziobuild = .{ .path = "../.." },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "patches",
+        "vendor",
+    },
+}

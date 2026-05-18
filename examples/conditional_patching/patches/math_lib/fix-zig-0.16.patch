@@ -1,0 +1,8 @@
+--- a/src/root.zig
++++ b/src/root.zig
+@@ -13,4 +13,4 @@ pub fn div(a: i64, b: i64) !i64 {
+     return a / b;
+ }
+ 
+-pub const version = "0.1.0";
++pub const version = "0.1.0-patched";

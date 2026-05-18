@@ -5,6 +5,14 @@
 //! underlying `*std.Build.Step.Compile`, so callers can drop down to
 //! raw `std.Build` whenever they want. Nothing is hidden.
 //!
+//! v0.4 highlights:
+//!   - **`Expr` & `ctx.patch()`**: composable build-time expressions
+//!     and conditional dependency patching. Apply `.patch` files to
+//!     dependencies based on zig version, target OS, or any composable
+//!     predicate.
+//!   - **`ctx.overlay()`**: replace files in a dependency's source tree
+//!     without git — direct file copies conditioned on `Expr`.
+//!
 //! v0.3 highlights:
 //!   - **Deferred resolution**: modules can be declared in any order.
 //!     Imports are resolved lazily when the build graph is finalized
@@ -46,6 +54,8 @@ const deps_mod = @import("deps.zig");
 const module_mod = @import("module.zig");
 const modules_mod = @import("modules.zig");
 const options_mod = @import("options.zig");
+const expr_mod = @import("expr.zig");
+const patch_mod = @import("patch.zig");
 
 /// Build a `Context` from a `*std.Build`. Entry point.
 pub const init = context_mod.init;
@@ -95,6 +105,16 @@ pub const enumOption = options_mod.enumOption;
 /// Declare an integer build option with a default.
 pub const intOption = options_mod.intOption;
 
+/// Composable build-time expression for conditional logic.
+pub const Expr = expr_mod.Expr;
+
+/// Comparison operator for `Expr.zigVersion`.
+pub const ExprCmp = expr_mod.Cmp;
+
+/// Options for `Context.patch`.
+pub const PatchOptions = patch_mod.Options;
+pub const OverlayOptions = patch_mod.OverlayOptions;
+
 test {
     _ = context_mod;
     _ = target_mod;
@@ -108,4 +128,6 @@ test {
     _ = module_mod;
     _ = modules_mod;
     _ = options_mod;
+    _ = expr_mod;
+    _ = patch_mod;
 }

@@ -25,3 +25,6 @@ jobs:
       - name: build minimal fixture
         working-directory: examples/minimal
         run: zig build
+      - name: build conditional_patching example
+        working-directory: examples/conditional_patching
+        run: zig build

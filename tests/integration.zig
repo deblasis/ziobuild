@@ -570,3 +570,83 @@ test "import_all: help step shows test and run" {
     try T.expect(std.mem.indexOf(u8, r.stderr, "test") != null);
     try T.expect(std.mem.indexOf(u8, r.stderr, "run") != null);
 }
+
+test "patches fixture: builds with patched dependency" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "patches");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "patches", "zig-out/bin/patches_test" ++ exe_suffix));
+}
+
+test "patches fixture: patched binary outputs patched string" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "patches");
+
+    // Build first
+    var build_r = try runZigBuild(cwd, &.{});
+    defer freeRun(&build_r);
+    try expectExited(build_r, 0);
+
+    // Run the built binary
+    const exe_path = try fixtureFile(a, "patches", "zig-out/bin/patches_test" ++ exe_suffix);
+    const run_r = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{exe_path},
+    });
+    defer {
+        T.allocator.free(run_r.stdout);
+        T.allocator.free(run_r.stderr);
+    }
+    try expectExited(run_r, 0);
+
+    // Verify the patched string appears in output (binary writes to stderr)
+    try T.expect(std.mem.indexOf(u8, run_r.stderr, "patched") != null);
+    try T.expect(std.mem.indexOf(u8, run_r.stderr, "unpatched") == null);
+}
+
+test "overlay fixture: builds with overlaid dependency" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "overlay");
+
+    var r = try runZigBuild(cwd, &.{});
+    defer freeRun(&r);
+    try expectExited(r, 0);
+
+    try expectFileExists(try fixtureFile(a, "overlay", "zig-out/bin/overlay_test" ++ exe_suffix));
+}
+
+test "overlay fixture: overlaid binary outputs overlaid string" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "overlay");
+
+    // Build first
+    var build_r = try runZigBuild(cwd, &.{});
+    defer freeRun(&build_r);
+    try expectExited(build_r, 0);
+
+    // Run the built binary
+    const exe_path = try fixtureFile(a, "overlay", "zig-out/bin/overlay_test" ++ exe_suffix);
+    const run_r = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{exe_path},
+    });
+    defer {
+        T.allocator.free(run_r.stdout);
+        T.allocator.free(run_r.stderr);
+    }
+    try expectExited(run_r, 0);
+
+    // Verify the overlaid string appears in output
+    try T.expect(std.mem.indexOf(u8, run_r.stderr, "overlaid") != null);
+    try T.expect(std.mem.indexOf(u8, run_r.stderr, "original") == null);
+}

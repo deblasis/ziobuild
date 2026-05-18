@@ -1,0 +1,5 @@
+--- a/src/root.zig
++++ b/src/root.zig
+@@ -1 +1 @@
+-pub const greeting = "hello from dummy_dep (unpatched)";
++pub const greeting = "hello from dummy_dep (patched)";

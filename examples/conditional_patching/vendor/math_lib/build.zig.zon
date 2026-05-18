@@ -1,0 +1,11 @@
+.{
+    .name = .math_lib,
+    .version = "0.1.0",
+    .fingerprint = 0xffdca323c45e8b0d,
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
