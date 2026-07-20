@@ -18,13 +18,12 @@ jobs:
       - uses: mlugg/setup-zig@v2
         with:
           version: "0.16.0"
-      - name: zig fmt
-        run: zig fmt --check src tests examples build.zig
-      - name: zig build test
-        run: zig build test --summary all
       - name: build minimal fixture
         working-directory: examples/minimal
         run: zig build
       - name: build conditional_patching example
         working-directory: examples/conditional_patching
         run: zig build
+      - uses: extractions/setup-just@v3
+      - name: just ci
+        run: just ci
