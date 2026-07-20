@@ -33,7 +33,7 @@ Open a [GitHub issue](../../issues/new) with:
 
 ## Code Style
 
-- Follow `zig fmt` — no custom formatting.
+- Follow `zig fmt` - no custom formatting.
 - Doc comments on every public symbol.
 - Prefer explicit error sets over `anyerror` where practical.
 

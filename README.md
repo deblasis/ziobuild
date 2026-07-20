@@ -232,7 +232,7 @@ pub const Dep = union(enum) {
 
 ### Deferred resolution
 
-Imports are resolved lazily, not at registration time. **Modules can be declared in any order.** Resolution is incremental — calling `ensureResolved()` (via `help()`, `testModules()`, `releases()`, or `finalize()`) at any point only resolves entries registered so far; later registrations are processed on the next call. This means `testModules()` can safely be called before `app()` without skipping the app's imports.
+Imports are resolved lazily, not at registration time. **Modules can be declared in any order.** Resolution is incremental - calling `ensureResolved()` (via `help()`, `testModules()`, `releases()`, or `finalize()`) at any point only resolves entries registered so far; later registrations are processed on the next call. This means `testModules()` can safely be called before `app()` without skipping the app's imports.
 
 ### `mod_imports` shorthand
 
@@ -306,7 +306,7 @@ ctx.patch("my_dep", .{
 });
 ```
 
-Multiple patches per dep — applied in registration order:
+Multiple patches per dep - applied in registration order:
 
 ```zig
 ctx.patch("my_dep", .{
@@ -329,7 +329,7 @@ ctx.patch("my_dep", .{
 });
 ```
 
-**How it works:** Patches are applied at dependency resolution time using `git apply`. The operation is idempotent — if a patch is already applied, it is silently skipped. If a patch conflicts with the source (neither forward nor reverse applies), the build fails with a clear error message. Requires `git` on `$PATH`.
+**How it works:** Patches are applied at dependency resolution time using `git apply`. The operation is idempotent - if a patch is already applied, it is silently skipped. If a patch conflicts with the source (neither forward nor reverse applies), the build fails with a clear error message. Requires `git` on `$PATH`.
 
 ### File overlays (no git)
 
@@ -342,7 +342,7 @@ ctx.overlay("my_dep", .{
 });
 ```
 
-The overlay directory structure mirrors the dependency's source tree. Every file in `overlays/my_dep/` overwrites the corresponding file in the dep. No git required — uses direct file copies.
+The overlay directory structure mirrors the dependency's source tree. Every file in `overlays/my_dep/` overwrites the corresponding file in the dep. No git required - uses direct file copies.
 
 ```text
 overlays/my_dep/
@@ -370,7 +370,7 @@ app.linkLibC();
 - New: `ctx.patch()` for conditional dependency patching (requires git).
 - New: `ctx.overlay()` for conditional file overlays (no git needed).
 - New: `Expr.envVar()` for environment-based conditions.
-- Removed: `Expr.buildOptionBool` / `Expr.buildOptionString` (broken — use `Expr.literal(resolved_value)` or plain Zig conditionals).
+- Removed: `Expr.buildOptionBool` / `Expr.buildOptionString` (broken - use `Expr.literal(resolved_value)` or plain Zig conditionals).
 
 ## Migration from v0.2 to v0.3
 

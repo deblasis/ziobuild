@@ -4,7 +4,7 @@
 
 ### Expressions & Conditional Patching
 
-**`Expr` type** — composable build-time predicates for conditional logic:
+**`Expr` type** - composable build-time predicates for conditional logic:
 
 ```zig
 const needs_fix = zb.Expr.zigVersion(.gte, "0.16.0")
@@ -15,7 +15,7 @@ Leaf constructors: `zigVersion`, `targetOs`, `targetArch`, `optimizeMode`, `envV
 Combinators: `andAlso`, `orElse`, `not`.
 Evaluate against current build state: `.evaluate(b, target, optimize)`.
 
-**`ctx.patch()`** — conditionally apply `.patch` files to dependencies:
+**`ctx.patch()`** - conditionally apply `.patch` files to dependencies:
 
 ```zig
 ctx.patch("my_dep", .{
@@ -24,7 +24,7 @@ ctx.patch("my_dep", .{
 });
 ```
 
-Patches are applied at dependency resolution time using `git apply`. Idempotent — already-applied patches are silently skipped. Conflicting patches fail with a clear error message. Requires `git` on `$PATH`.
+Patches are applied at dependency resolution time using `git apply`. Idempotent - already-applied patches are silently skipped. Conflicting patches fail with a clear error message. Requires `git` on `$PATH`.
 
 ### New public API
 
@@ -39,10 +39,10 @@ Patches are applied at dependency resolution time using `git apply`. Idempotent 
 
 ### Files added
 
-- `src/expr.zig` — expression system
-- `src/patch.zig` — patch application logic
-- `tests/fixtures/patches/` — integration test fixture
-- `examples/conditional_patching/` — working example with vendored dependency
+- `src/expr.zig` - expression system
+- `src/patch.zig` - patch application logic
+- `tests/fixtures/patches/` - integration test fixture
+- `examples/conditional_patching/` - working example with vendored dependency
 
 ## v0.3.0
 
