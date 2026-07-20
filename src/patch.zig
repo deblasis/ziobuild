@@ -169,9 +169,12 @@ pub fn applyOverlays(
 /// Recursively copy files from `src_dir` to `dst_dir`. Uses `xcopy`
 /// on Windows and `cp -r` on other platforms for simplicity.
 fn copyOverlayDir(b: *std.Build, src_dir: []const u8, dst_dir: []const u8) void {
-    const argv = switch (builtin.os.tag) {
+    // The trailing "/." makes cp copy the contents of src_dir rather than
+    // the directory itself. It has to be built with b.fmt because src_dir
+    // is a runtime slice, and ++ only concatenates comptime-known values.
+    const argv: []const []const u8 = switch (builtin.os.tag) {
         .windows => &.{ "xcopy", src_dir, dst_dir, "/E", "/Y", "/Q" },
-        else => &.{ "cp", "-r", src_dir ++ "/.", dst_dir },
+        else => &.{ "cp", "-r", b.fmt("{s}/.", .{src_dir}), dst_dir },
     };
     var code: u8 = undefined;
     _ = b.runAllowFail(argv, &code, .ignore) catch {
@@ -199,4 +202,13 @@ test "Options struct compiles" {
     _ = _overlay_opts;
 
     try std.testing.expect(true);
+}
+
+test "copyOverlayDir compiles" {
+    // This function is only reachable when someone actually uses an overlay,
+    // so nothing in the build or the test suite used to analyse it. That is
+    // how it sat broken: it concatenated a runtime slice with ++, which is a
+    // compile error, and nobody found out until they tried to use overlays.
+    // Referencing it here forces semantic analysis on every test run.
+    _ = &copyOverlayDir;
 }
