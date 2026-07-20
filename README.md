@@ -207,11 +207,11 @@ Explicit resolution trigger. Only needed if you don't call `help()`.
 
 ### `ctx.patch(dep_name, opts)`
 
-Register a conditional patch for a dependency. `opts.file` is the patch path (relative to build root), `opts.when` is an `Expr`, and `opts.strip` is the `-p` level (defaults to 1). Requires `git`.
+Register a conditional patch for a dependency. `opts.file` is the patch path (relative to build root), `opts.when` is an `Expr`, and `opts.strip` is the `-p` level (defaults to 1). Requires `git`. Rewrites the dependency source in place, see [Conditional patching](#conditional-patching).
 
 ### `ctx.overlay(dep_name, opts)`
 
-Register a conditional file overlay for a dependency. `opts.dir` is the overlay directory (relative to build root), `opts.when` is an `Expr`. Files from `dir` are copied into the dep's source tree. No git required.
+Register a conditional file overlay for a dependency. `opts.dir` is the overlay directory (relative to build root), `opts.when` is an `Expr`. Files from `dir` are copied over the dep's source tree in place. No git required.
 
 ### `Expr`
 
@@ -331,6 +331,8 @@ ctx.patch("my_dep", .{
 
 **How it works:** Patches are applied at dependency resolution time using `git apply`. The operation is idempotent - if a patch is already applied, it is silently skipped. If a patch conflicts with the source (neither forward nor reverse applies), the build fails with a clear error message. Requires `git` on `$PATH`.
 
+**What it does to your files:** `ctx.patch()` rewrites the dependency's source tree in place, on disk, while the build script runs. There is no separate patched copy. For a vendored or path dependency that means the build leaves your working tree dirty, so commit the vendored source in its unpatched state and expect `git status` to show it after a build. For a fetched dependency it means the copy in the shared Zig package cache is edited, which affects every project on the machine that uses that exact package hash. The same applies to `ctx.overlay()`.
+
 ### File overlays (no git)
 
 Replace files in a dependency's source tree without `git`. Copy files from an overlay directory into the dep:
@@ -342,7 +344,7 @@ ctx.overlay("my_dep", .{
 });
 ```
 
-The overlay directory structure mirrors the dependency's source tree. Every file in `overlays/my_dep/` overwrites the corresponding file in the dep. No git required - uses direct file copies.
+The overlay directory structure mirrors the dependency's source tree. Every file in `overlays/my_dep/` overwrites the corresponding file in the dep. No git required - it shells out to `cp -r` (`xcopy` on Windows), so those need to be on `$PATH` instead.
 
 ```text
 overlays/my_dep/

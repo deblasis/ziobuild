@@ -1,1 +1,1 @@
-pub const greeting = "hello from dummy_dep (overlaid)";
+pub const greeting = "hello from dummy_dep (original)";

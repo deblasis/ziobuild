@@ -11,10 +11,13 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    // Apply a file overlay (no git needed).
+    // Apply a file overlay (no git needed), gated on the optimize mode
+    // so the test suite can drive both branches from the command line:
+    // a plain `zig build` overlays, `zig build -Doptimize=ReleaseFast`
+    // does not.
     ctx.overlay("dummy_dep", .{
         .dir = "overlays/dummy_dep",
-        .when = zb.Expr.literal(true),
+        .when = zb.Expr.optimizeMode(.Debug),
     });
 
     ctx.help();

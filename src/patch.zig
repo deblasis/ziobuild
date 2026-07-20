@@ -6,6 +6,11 @@
 //! `resolveZonDep` is called), not as build graph steps. This
 //! ensures the patched sources are visible to the compiler.
 //!
+//! Both patches and overlays rewrite the dependency's source tree in
+//! place. There is no separate patched copy, so a vendored dep ends
+//! up dirty in your working tree and a fetched dep is edited inside
+//! the shared package cache. See the README for the details.
+//!
 //! Idempotency: if a patch is already applied (reverse check
 //! succeeds), it is silently skipped. If a patch conflicts with
 //! the source (both forward and reverse check fail), the build
@@ -68,7 +73,8 @@ pub fn patch(ctx: context_mod.Context, dep_name: []const u8, options: Options) v
 
 /// Register a conditional file overlay for a dependency. Files from
 /// `dir` are copied over the dependency's source tree at resolution
-/// time. No git required — uses direct file copies.
+/// time. No git required, it shells out to `cp -r` instead
+/// (`xcopy` on Windows).
 pub fn overlay(ctx: context_mod.Context, dep_name: []const u8, options: OverlayOptions) void {
     ctx.overlays.append(ctx.b.allocator, .{
         .dep_name = dep_name,
@@ -102,6 +108,37 @@ pub fn applyPatches(
     }
 }
 
+/// What happened when we tried to run an external tool.
+///
+/// A tool that could not be started at all (git is not installed) is
+/// a completely different problem from a tool that ran and said no,
+/// and the two need different error messages. Collapsing them is how
+/// a missing git used to be reported as "your patch conflicts".
+const ToolResult = union(enum) {
+    /// The tool ran and exited 0.
+    ok,
+    /// The tool ran and exited non-zero.
+    nonzero_exit,
+    /// The tool could not be run at all (not on PATH, and so on).
+    could_not_run: anyerror,
+};
+
+fn runTool(b: *std.Build, argv: []const []const u8) ToolResult {
+    var code: u8 = undefined;
+    _ = b.runAllowFail(argv, &code, .ignore) catch |err| switch (err) {
+        error.ExitCodeFailure => return .nonzero_exit,
+        else => return .{ .could_not_run = err },
+    };
+    return .ok;
+}
+
+fn panicCannotRun(tool: []const u8, err: anyerror, needed_for: []const u8) noreturn {
+    std.debug.panic(
+        "ziobuild: could not run '{s}' ({s}). It has to be on your PATH for {s}.\n",
+        .{ tool, @errorName(err), needed_for },
+    );
+}
+
 /// Apply a single patch. Uses a three-step approach:
 ///
 ///   1. `git apply --check` — can the patch be applied cleanly?
@@ -120,31 +157,36 @@ fn applyPatch(
     const argv_apply = &.{ "git", "-C", dep_root, "apply", strip_arg, patch_path };
 
     // Step 1: Can the patch be applied cleanly?
-    var code: u8 = undefined;
-    _ = b.runAllowFail(argv_check, &code, .ignore) catch {
-        // Step 3a: Is it already applied? (reverse check)
-        var rev_code: u8 = undefined;
-        _ = b.runAllowFail(argv_reverse_check, &rev_code, .ignore) catch {
-            // Step 3b: Neither forward nor reverse applies — conflict.
-            std.debug.panic(
-                "ziobuild: patch '{s}' conflicts with dependency source in '{s}'. " ++
-                    "The patch does not apply cleanly and is not already applied. " ++
-                    "Fix the patch or remove the ctx.patch() call.\n",
-                .{ patch_path, dep_root },
-            );
-        };
-        // Reverse check succeeded — patch is already applied. Skip.
-        return;
-    };
+    switch (runTool(b, argv_check)) {
+        .ok => {},
+        .could_not_run => |err| panicCannotRun("git", err, "ctx.patch()"),
+        .nonzero_exit => {
+            // Step 3a: Is it already applied? (reverse check)
+            switch (runTool(b, argv_reverse_check)) {
+                // Reverse check succeeded, the patch is already applied. Skip.
+                .ok => return,
+                .could_not_run => |err| panicCannotRun("git", err, "ctx.patch()"),
+                // Step 3b: Neither forward nor reverse applies, so it conflicts.
+                .nonzero_exit => std.debug.panic(
+                    "ziobuild: patch '{s}' conflicts with dependency source in '{s}'. " ++
+                        "The patch does not apply cleanly and is not already applied. " ++
+                        "Fix the patch or remove the ctx.patch() call.\n",
+                    .{ patch_path, dep_root },
+                ),
+            }
+        },
+    }
 
     // Step 2: Apply for real.
-    _ = b.runAllowFail(argv_apply, &code, .ignore) catch {
+    switch (runTool(b, argv_apply)) {
+        .ok => {},
+        .could_not_run => |err| panicCannotRun("git", err, "ctx.patch()"),
         // Unlikely: --check passed but apply failed. Report it.
-        std.debug.panic(
+        .nonzero_exit => std.debug.panic(
             "ziobuild: patch '{s}' passed --check but failed to apply in '{s}'.\n",
             .{ patch_path, dep_root },
-        );
-    };
+        ),
+    }
 }
 
 /// Apply all registered overlays for `dep_name` to the dependency at
@@ -176,14 +218,15 @@ fn copyOverlayDir(b: *std.Build, src_dir: []const u8, dst_dir: []const u8) void 
         .windows => &.{ "xcopy", src_dir, dst_dir, "/E", "/Y", "/Q" },
         else => &.{ "cp", "-r", b.fmt("{s}/.", .{src_dir}), dst_dir },
     };
-    var code: u8 = undefined;
-    _ = b.runAllowFail(argv, &code, .ignore) catch {
-        std.debug.panic(
+    switch (runTool(b, argv)) {
+        .ok => {},
+        .could_not_run => |err| panicCannotRun(argv[0], err, "ctx.overlay()"),
+        .nonzero_exit => std.debug.panic(
             "ziobuild: overlay directory '{s}' could not be copied to '{s}'." ++
                 " Ensure the overlay directory exists.\n",
             .{ src_dir, dst_dir },
-        );
-    };
+        ),
+    }
 }
 
 const builtin = @import("builtin");

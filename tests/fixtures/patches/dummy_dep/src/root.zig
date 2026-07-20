@@ -1,1 +1,1 @@
-pub const greeting = "hello from dummy_dep (patched)";
+pub const greeting = "hello from dummy_dep (unpatched)";

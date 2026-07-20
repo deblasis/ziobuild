@@ -571,11 +571,48 @@ test "import_all: help step shows test and run" {
     try T.expect(std.mem.indexOf(u8, r.stderr, "run") != null);
 }
 
+// ============================================================
+// v0.4 tests: conditional patching and file overlays
+//
+// Both `ctx.patch()` and `ctx.overlay()` rewrite the dependency
+// source tree in place, so the fixtures are committed in their
+// pristine (untransformed) state and every test below restores that
+// state before it builds and puts it back when it is done. That is
+// what makes these tests able to fail: if the transformation silently
+// does nothing, the source still holds the pristine text and the
+// assertions trip.
+// ============================================================
+
+const patch_pristine = "pub const greeting = \"hello from dummy_dep (unpatched)\";\n";
+const patch_applied = "pub const greeting = \"hello from dummy_dep (patched)\";\n";
+const overlay_pristine = "pub const greeting = \"hello from dummy_dep (original)\";\n";
+const overlay_applied = "pub const greeting = \"hello from dummy_dep (overlaid)\";\n";
+
+const patch_dep_source = "dummy_dep/src/root.zig";
+
+fn writeFileContents(path: []const u8, contents: []const u8) !void {
+    try std.Io.Dir.cwd().writeFile(T.io, .{ .sub_path = path, .data = contents });
+}
+
+fn readFileContents(a: std.mem.Allocator, path: []const u8) ![]u8 {
+    return std.Io.Dir.cwd().readFileAlloc(T.io, path, a, .limited(64 * 1024));
+}
+
+/// Put the fixture's dependency source back to `contents` and check
+/// the write landed. Used both to set up and to clean up.
+fn resetDepSource(a: std.mem.Allocator, fixture: []const u8, contents: []const u8) !void {
+    const path = try fixtureFile(a, fixture, patch_dep_source);
+    try writeFileContents(path, contents);
+}
+
 test "patches fixture: builds with patched dependency" {
     var arena = std.heap.ArenaAllocator.init(T.allocator);
     defer arena.deinit();
     const a = arena.allocator();
     const cwd = try fixturePath(a, "patches");
+
+    try resetDepSource(a, "patches", patch_pristine);
+    defer resetDepSource(a, "patches", patch_pristine) catch {};
 
     var r = try runZigBuild(cwd, &.{});
     defer freeRun(&r);
@@ -584,11 +621,35 @@ test "patches fixture: builds with patched dependency" {
     try expectFileExists(try fixtureFile(a, "patches", "zig-out/bin/patches_test" ++ exe_suffix));
 }
 
+test "patches fixture: patch rewrites the dependency source" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "patches");
+    const dep_source = try fixtureFile(a, "patches", patch_dep_source);
+
+    try resetDepSource(a, "patches", patch_pristine);
+    defer resetDepSource(a, "patches", patch_pristine) catch {};
+
+    // Sanity: we really did start from the unpatched text.
+    try T.expectEqualStrings(patch_pristine, try readFileContents(a, dep_source));
+
+    var build_r = try runZigBuild(cwd, &.{});
+    defer freeRun(&build_r);
+    try expectExited(build_r, 0);
+
+    // The patch has to have actually rewritten the file on disk.
+    try T.expectEqualStrings(patch_applied, try readFileContents(a, dep_source));
+}
+
 test "patches fixture: patched binary outputs patched string" {
     var arena = std.heap.ArenaAllocator.init(T.allocator);
     defer arena.deinit();
     const a = arena.allocator();
     const cwd = try fixturePath(a, "patches");
+
+    try resetDepSource(a, "patches", patch_pristine);
+    defer resetDepSource(a, "patches", patch_pristine) catch {};
 
     // Build first
     var build_r = try runZigBuild(cwd, &.{});
@@ -611,11 +672,44 @@ test "patches fixture: patched binary outputs patched string" {
     try T.expect(std.mem.indexOf(u8, run_r.stderr, "unpatched") == null);
 }
 
+test "patches fixture: patch is skipped when the condition is false" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "patches");
+    const dep_source = try fixtureFile(a, "patches", patch_dep_source);
+
+    try resetDepSource(a, "patches", patch_pristine);
+    defer resetDepSource(a, "patches", patch_pristine) catch {};
+
+    // The fixture gates the patch on `Expr.optimizeMode(.Debug)`, so
+    // any other optimize mode must leave the dependency alone.
+    var build_r = try runZigBuild(cwd, &.{"-Doptimize=ReleaseFast"});
+    defer freeRun(&build_r);
+    try expectExited(build_r, 0);
+
+    try T.expectEqualStrings(patch_pristine, try readFileContents(a, dep_source));
+
+    const exe_path = try fixtureFile(a, "patches", "zig-out/bin/patches_test" ++ exe_suffix);
+    const run_r = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{exe_path},
+    });
+    defer {
+        T.allocator.free(run_r.stdout);
+        T.allocator.free(run_r.stderr);
+    }
+    try expectExited(run_r, 0);
+    try T.expect(std.mem.indexOf(u8, run_r.stderr, "unpatched") != null);
+}
+
 test "overlay fixture: builds with overlaid dependency" {
     var arena = std.heap.ArenaAllocator.init(T.allocator);
     defer arena.deinit();
     const a = arena.allocator();
     const cwd = try fixturePath(a, "overlay");
+
+    try resetDepSource(a, "overlay", overlay_pristine);
+    defer resetDepSource(a, "overlay", overlay_pristine) catch {};
 
     var r = try runZigBuild(cwd, &.{});
     defer freeRun(&r);
@@ -624,11 +718,35 @@ test "overlay fixture: builds with overlaid dependency" {
     try expectFileExists(try fixtureFile(a, "overlay", "zig-out/bin/overlay_test" ++ exe_suffix));
 }
 
+test "overlay fixture: overlay rewrites the dependency source" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "overlay");
+    const dep_source = try fixtureFile(a, "overlay", patch_dep_source);
+
+    try resetDepSource(a, "overlay", overlay_pristine);
+    defer resetDepSource(a, "overlay", overlay_pristine) catch {};
+
+    // Sanity: we really did start from the original text.
+    try T.expectEqualStrings(overlay_pristine, try readFileContents(a, dep_source));
+
+    var build_r = try runZigBuild(cwd, &.{});
+    defer freeRun(&build_r);
+    try expectExited(build_r, 0);
+
+    // The overlay has to have actually replaced the file on disk.
+    try T.expectEqualStrings(overlay_applied, try readFileContents(a, dep_source));
+}
+
 test "overlay fixture: overlaid binary outputs overlaid string" {
     var arena = std.heap.ArenaAllocator.init(T.allocator);
     defer arena.deinit();
     const a = arena.allocator();
     const cwd = try fixturePath(a, "overlay");
+
+    try resetDepSource(a, "overlay", overlay_pristine);
+    defer resetDepSource(a, "overlay", overlay_pristine) catch {};
 
     // Build first
     var build_r = try runZigBuild(cwd, &.{});
@@ -649,4 +767,109 @@ test "overlay fixture: overlaid binary outputs overlaid string" {
     // Verify the overlaid string appears in output
     try T.expect(std.mem.indexOf(u8, run_r.stderr, "overlaid") != null);
     try T.expect(std.mem.indexOf(u8, run_r.stderr, "original") == null);
+}
+
+test "overlay fixture: overlay is skipped when the condition is false" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "overlay");
+    const dep_source = try fixtureFile(a, "overlay", patch_dep_source);
+
+    try resetDepSource(a, "overlay", overlay_pristine);
+    defer resetDepSource(a, "overlay", overlay_pristine) catch {};
+
+    // The fixture gates the overlay on `Expr.optimizeMode(.Debug)`, so
+    // any other optimize mode must leave the dependency alone.
+    var build_r = try runZigBuild(cwd, &.{"-Doptimize=ReleaseFast"});
+    defer freeRun(&build_r);
+    try expectExited(build_r, 0);
+
+    try T.expectEqualStrings(overlay_pristine, try readFileContents(a, dep_source));
+
+    const exe_path = try fixtureFile(a, "overlay", "zig-out/bin/overlay_test" ++ exe_suffix);
+    const run_r = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{exe_path},
+    });
+    defer {
+        T.allocator.free(run_r.stdout);
+        T.allocator.free(run_r.stderr);
+    }
+    try expectExited(run_r, 0);
+    try T.expect(std.mem.indexOf(u8, run_r.stderr, "original") != null);
+}
+
+test "patches fixture: a missing git is reported as a missing git" {
+    // On Windows, emptying PATH breaks more than the git lookup.
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cwd = try fixturePath(a, "patches");
+
+    try resetDepSource(a, "patches", patch_pristine);
+    defer resetDepSource(a, "patches", patch_pristine) catch {};
+
+    // Same environment as this process except PATH, which is pointed
+    // at a directory that does not exist. `zig` itself is invoked by
+    // absolute path, so only the `git` lookup inside ziobuild breaks.
+    var env = try T.environ.createMap(T.allocator);
+    defer env.deinit();
+    try env.put("PATH", "/ziobuild-nonexistent-path");
+
+    const r = try std.process.run(T.allocator, T.io, .{
+        .argv = &.{ opts.zig_exe, "build" },
+        .cwd = .{ .path = cwd },
+        .environ_map = &env,
+    });
+    defer {
+        T.allocator.free(r.stdout);
+        T.allocator.free(r.stderr);
+    }
+
+    // The build must fail, and it must blame git rather than send the
+    // user off to fix a patch that is perfectly fine.
+    try T.expect(r.term != .exited or r.term.exited != 0);
+    try T.expect(std.mem.indexOf(u8, r.stderr, "could not run 'git'") != null);
+    try T.expect(std.mem.indexOf(u8, r.stderr, "conflicts with dependency source") == null);
+}
+
+test "conditional_patching example: the vendored dep really gets patched" {
+    var arena = std.heap.ArenaAllocator.init(T.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const dep_source = try std.fs.path.join(a, &.{
+        opts.conditional_patching_dir,
+        "vendor/math_lib/src/root.zig",
+    });
+
+    // Put the version string back to its pristine value. Building the
+    // example patches the vendored source in place, so it may already
+    // be patched from an earlier build.
+    const current = try readFileContents(a, dep_source);
+    const pristine = try std.mem.replaceOwned(u8, a, current, "\"0.1.0-patched\"", "\"0.1.0\"");
+    try writeFileContents(dep_source, pristine);
+    defer writeFileContents(dep_source, pristine) catch {};
+    try T.expect(std.mem.indexOf(u8, pristine, "\"0.1.0-patched\"") == null);
+
+    var build_r = try runZigBuild(opts.conditional_patching_dir, &.{});
+    defer freeRun(&build_r);
+    try expectExited(build_r, 0);
+
+    const patched = try readFileContents(a, dep_source);
+    try T.expect(std.mem.indexOf(u8, patched, "\"0.1.0-patched\"") != null);
+
+    const exe_path = try std.fs.path.join(a, &.{
+        opts.conditional_patching_dir,
+        "zig-out/bin/conditional_patching" ++ exe_suffix,
+    });
+    const run_r = try std.process.run(T.allocator, T.io, .{ .argv = &.{exe_path} });
+    defer {
+        T.allocator.free(run_r.stdout);
+        T.allocator.free(run_r.stderr);
+    }
+    try expectExited(run_r, 0);
+    try T.expect(std.mem.indexOf(u8, run_r.stderr, "0.1.0-patched") != null);
 }

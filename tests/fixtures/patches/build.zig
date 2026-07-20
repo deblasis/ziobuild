@@ -11,11 +11,13 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    // Register a conditional patch. The expression is always-true
-    // so the test reliably exercises the patch path.
+    // Register a conditional patch, gated on the optimize mode so the
+    // test suite can drive both branches from the command line:
+    // a plain `zig build` patches, `zig build -Doptimize=ReleaseFast`
+    // does not.
     ctx.patch("dummy_dep", .{
         .file = "patches/dummy_dep/fix.patch",
-        .when = zb.Expr.literal(true),
+        .when = zb.Expr.optimizeMode(.Debug),
     });
 
     ctx.help();

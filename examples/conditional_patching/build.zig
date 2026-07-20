@@ -14,9 +14,13 @@ pub fn build(b: *std.Build) void {
 
     // Apply a patch to math_lib when building with Zig >= 0.16.0.
     // The patch file lives in patches/math_lib/ and is a standard
-    // unified diff that `git apply` can process.
+    // unified diff that `git apply` can process. It bumps the vendored
+    // library's version string so you can see the patch took effect.
+    //
+    // Note that patching rewrites vendor/math_lib/src/root.zig in
+    // place, so building this example leaves the working tree dirty.
     ctx.patch("math_lib", .{
-        .file = "patches/math_lib/fix-zig-0.16.patch",
+        .file = "patches/math_lib/bump-version.patch",
         .when = zb.Expr.zigVersion(.gte, "0.16.0"),
     });
 

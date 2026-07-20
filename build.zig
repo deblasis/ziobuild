@@ -49,6 +49,7 @@ pub fn build(b: *std.Build) void {
     const opts = b.addOptions();
     opts.addOption([]const u8, "fixtures_dir", b.pathFromRoot("tests/fixtures"));
     opts.addOption([]const u8, "minimal_dir", b.pathFromRoot("examples/minimal"));
+    opts.addOption([]const u8, "conditional_patching_dir", b.pathFromRoot("examples/conditional_patching"));
     opts.addOption([]const u8, "zig_exe", b.graph.zig_exe);
 
     const integ_mod = b.createModule(.{

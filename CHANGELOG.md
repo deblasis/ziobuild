@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the patch and overlay fixtures, which could not fail. Their
+  dependency sources were committed already transformed, so the tests
+  passed whether or not patching ran. They are committed pristine now
+  and the tests restore that state before every build.
+- A missing `git` no longer gets reported as "your patch conflicts".
+  Failing to start a tool and a tool that ran and said no are told
+  apart now, for `ctx.patch()` and `ctx.overlay()` both.
+- Documented that patching and overlaying rewrite the dependency
+  source in place, including what that means for a fetched dep in the
+  shared package cache.
+- `examples/conditional_patching` no longer claims its patch fixes a
+  Zig 0.16 API rename. It bumps a version string, and the file is
+  named for what it does. The example is covered by a test now.
+
 ## v0.4.0
 
 ### Expressions & Conditional Patching
