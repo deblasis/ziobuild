@@ -36,6 +36,9 @@ pub const Options = struct {
     step_name: ?[]const u8 = null,
     /// Description for the run step. Defaults to `"Run <name>"`.
     step_description: ?[]const u8 = null,
+    /// Link libc into the app's root module. Needed when the app or any
+    /// module it pulls in calls the C library, for example std.c.dlopen.
+    link_libc: ?bool = null,
 };
 
 /// Build an executable.
@@ -48,6 +51,7 @@ pub fn app(ctx: context_mod.Context, options: Options) *std.Build.Step.Compile {
         .root_source_file = ctx.b.path(options.root),
         .target = target,
         .optimize = optimize,
+        .link_libc = options.link_libc,
     });
 
     // Defer import resolution.

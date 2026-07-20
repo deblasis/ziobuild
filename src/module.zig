@@ -31,6 +31,11 @@ pub const Options = struct {
     target: ?std.Build.ResolvedTarget = null,
     /// Override the Context default optimize.
     optimize: ?std.builtin.OptimizeMode = null,
+    /// Link libc into this module. Needed by any module that calls into
+    /// the C library, for example std.c.dlopen. Leave null to inherit
+    /// Zig's default, which links libc on some targets (macOS) and not
+    /// others (Linux), which is a common cross-platform build surprise.
+    link_libc: ?bool = null,
 };
 
 /// Register a named module. Returns the `*Module`.
@@ -44,6 +49,7 @@ pub fn module(ctx: context_mod.Context, name: []const u8, options: Options) *std
         .root_source_file = ctx.b.path(options.root),
         .target = target,
         .optimize = optimize,
+        .link_libc = options.link_libc,
     });
 
     // Register immediately so the module is visible for ordering-
